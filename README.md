@@ -5,4 +5,3 @@
 # TODO
 
 * Add documentation
-* Add `cutout` functionality back into `BackDrop`

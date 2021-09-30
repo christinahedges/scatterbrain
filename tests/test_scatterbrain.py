@@ -27,6 +27,18 @@ def test_design_matrix():
         assert isinstance(A.join(A), dm)
         A = dm(column=xp.arange(10), row=xp.arange(9), prior_sigma=1e5)
         A.fit_frame(frame)
+        A = dm(cutout_size=128)
+        assert A.shape[0] == 128 ** 2
+
+
+def test_backdrop_cutout():
+    frames = xp.random.normal(size=(2, 128, 128)) + 100
+    b = BackDrop(cutout_size=128)
+    b.fit_model(frames)
+    assert len(b.weights_full) == 2
+    assert len(b.weights_basic) == 2
+    model = b.model(0)
+    assert model.shape == (128, 128)
 
 
 def test_backdrop():

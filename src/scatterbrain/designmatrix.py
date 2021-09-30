@@ -119,14 +119,16 @@ class TESS_design_matrix(design_matrix):
         column=None,
         row=None,
         name="TESS",
+        cutout_size=2048,
     ):
+        self.cutout_size = cutout_size
         self.ccd = ccd
         if self.ccd in [1, 3]:
             self.bore_pixel = [2048, 2048]
         elif self.ccd in [2, 4]:
             self.bore_pixel = [2048, 0]
         if (column is None) and (row is None):
-            row, column = xp.mgrid[:2048, :2048]
+            row, column = xp.mgrid[: self.cutout_size, : self.cutout_size]
             self.column, self.row = (column - self.bore_pixel[1]) / (2048), (
                 row - self.bore_pixel[0]
             ) / (2048)
@@ -136,9 +138,9 @@ class TESS_design_matrix(design_matrix):
             row, column = xp.meshgrid(row, column)
             row = row.T
             column = column.T
-            self.column, self.row = (column - self.bore_pixel[1]) / (2048), (
-                row - self.bore_pixel[0]
-            ) / (2048)
+            self.column, self.row = (column - self.bore_pixel[1]) / (
+                self.cutout_size
+            ), (row - self.bore_pixel[0]) / (self.cutout_size)
         else:
             raise ValueError("Specify both column and row")
         super().__init__(
@@ -164,6 +166,7 @@ class cartesian_design_matrix(TESS_design_matrix):
         npoly=5,
         column=None,
         row=None,
+        cutout_size=2048,
     ):
         self.npoly = npoly
         super().__init__(
@@ -174,6 +177,7 @@ class cartesian_design_matrix(TESS_design_matrix):
             ccd=ccd,
             column=column,
             row=row,
+            cutout_size=cutout_size,
         )
 
 
@@ -192,6 +196,7 @@ class radial_design_matrix(TESS_design_matrix):
         npoly=10,
         column=None,
         row=None,
+        cutout_size=2048,
     ):
         self.npoly = npoly
         super().__init__(
@@ -202,6 +207,7 @@ class radial_design_matrix(TESS_design_matrix):
             ccd=ccd,
             column=column,
             row=row,
+            cutout_size=cutout_size,
         )
 
 
@@ -219,6 +225,7 @@ class strap_design_matrix(TESS_design_matrix):
         npoly=10,
         column=None,
         row=None,
+        cutout_size=2048,
     ):
         self.npoly = npoly
         super().__init__(
@@ -229,13 +236,14 @@ class strap_design_matrix(TESS_design_matrix):
             ccd=ccd,
             column=column,
             row=row,
+            cutout_size=cutout_size,
         )
 
 
 class spline_design_matrix(TESS_design_matrix):
     def _build(self):
         """Builds a 2048**2 x N matrix"""
-        x = self.column[0] + (self.bore_pixel[1] / 2048)
+        x = self.column[0] + (self.bore_pixel[1] / self.cutout_size)
         knots = (
             xp.linspace(0, 1, self.nknots) + 1e-10
         )  # This stops numerical instabilities where x==knot value
@@ -257,10 +265,12 @@ class spline_design_matrix(TESS_design_matrix):
         A1 = sparse.vstack([As] * self.column.shape[0]).tocsr()
 
         # 2D sparse matrix, for 2048 pixels x 2048 rows
-        if self.column.shape == (2048, 2048):
-            A2 = sparse.vstack([A1[idx::2048] for idx in range(2048)]).tocsr()
+        if self.column.shape == (self.cutout_size, self.cutout_size):
+            A2 = sparse.vstack(
+                [A1[idx :: self.cutout_size] for idx in range(self.cutout_size)]
+            ).tocsr()
         else:
-            x = self.row[:, 0] + +(self.bore_pixel[1] / 2048)
+            x = self.row[:, 0] + +(self.bore_pixel[1] / self.cutout_size)
             As = sparse.vstack(
                 [
                     sparse.csr_matrix(
@@ -287,6 +297,7 @@ class spline_design_matrix(TESS_design_matrix):
         degree=2,
         column=None,
         row=None,
+        cutout_size=2048,
     ):
         self.degree = degree
         self.nknots = nknots
@@ -298,4 +309,5 @@ class spline_design_matrix(TESS_design_matrix):
             ccd=ccd,
             column=column,
             row=row,
+            cutout_size=cutout_size,
         )
