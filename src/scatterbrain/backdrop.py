@@ -8,7 +8,7 @@ from .designmatrix import (
     spline_design_matrix,
     strap_design_matrix,
 )
-from .utils import get_star_mask
+from .utils import get_star_mask, get_sat_mask
 
 
 class BackDrop(object):
@@ -60,6 +60,7 @@ class BackDrop(object):
         self.ccd = ccd
         self.weights_basic = []
         self.weights_full = []
+        self.jitter = []
 
     def update_sigma_f(self, sigma_f):
         self.A1.update_sigma_f(sigma_f)
@@ -76,9 +77,20 @@ class BackDrop(object):
         # if frame.shape != (2048, 2048):
         #     raise ValueError("Pass a frame that is (2048, 2048)")
         star_mask = get_star_mask(frame)
+        sat_mask = get_sat_mask(frame)
         sigma_f = xp.ones(frame.shape)
-        sigma_f[~star_mask] = 1e5
+        sigma_f[~star_mask | ~sat_mask] = 1e5
         self.update_sigma_f(sigma_f)
+        if (~star_mask & sat_mask).sum() > 5000:
+            s = np.random.choice(
+                (~star_mask & sat_mask).sum(), size=5000, replace=False
+            )
+            l = np.asarray(np.where(~star_mask & sat_mask))
+            l = l[:, s]
+            self.jitter_mask = np.zeros((self.cutout_size, self.cutout_size), bool)
+            self.jitter_mask[l[0], l[1]] = True
+        else:
+            self.jitter_mask = (~star_mask & sat_mask).copy()
         return
 
     def model(tdx):
@@ -106,8 +118,7 @@ class BackDrop(object):
         res = frame - self._model_basic(-1)
         self._fit_full(res)
         res = res - self._model_full(-1)
-
-        # SOMETHING ABOUT JITTER
+        self.jitter.append(res[self.jitter_mask])
         return
 
     def fit_model(self, flux_cube, test_frame=0):
@@ -125,10 +136,6 @@ class BackDrop(object):
             return (self.row.shape[0], self.column.shape[0])
         else:
             return
-
-    @property
-    def jitter():
-        return
 
     def save(self, outfile="backdrop_weights.npz"):
         xp.savez(outfile, xp.asarray(self.weights_basic), xp.asarray(self.weights_full))

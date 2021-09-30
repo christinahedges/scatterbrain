@@ -62,3 +62,60 @@ def get_star_mask(f):
         ~(xp.asarray(xp.gradient(star_mask.astype(float))) != 0).any(axis=0) & star_mask
     )
     return star_mask
+
+
+def _find_saturation_column_centers(mask):
+    """
+    Finds the center point of saturation columns.
+    Parameters
+    ----------
+    mask : xp.ndarray of bools
+        Mask where True indicates a pixel is saturated
+    Returns
+    -------
+    centers : xp.ndarray
+        Array of the centers in XY space for all the bleed columns
+    """
+    centers = []
+    radii = []
+    idxs = xp.where(mask.any(axis=0))[0]
+    for idx in idxs:
+        line = mask[:, idx]
+        seq = []
+        val = line[0]
+        jdx = 0
+        while jdx <= len(line):
+            while line[jdx] == val:
+                jdx += 1
+                if jdx >= len(line):
+                    break
+            if jdx >= len(line):
+                break
+            seq.append(jdx)
+            val = line[jdx]
+        w = xp.array_split(line, seq)
+        v = xp.array_split(xp.arange(len(line)), seq)
+        coords = [(idx, v1.mean().astype(int)) for v1, w1 in zip(v, w) if w1.all()]
+        rads = [len(v1) / 2 for v1, w1 in zip(v, w) if w1.all()]
+        for coord, rad in zip(coords, rads):
+            centers.append(coord)
+            radii.append(rad)
+    centers = xp.asarray(centers)
+    radii = xp.asarray(radii)
+    return centers, radii
+
+
+def get_sat_mask(f):
+    """False where saturation spikes are. Keep in mind this might be a bad
+    set of hard coded parameters for some TESS images!"""
+    sat = f > 9e4
+    l, r = _find_saturation_column_centers(sat)
+    col, row = xp.mgrid[: f.shape[0], : f.shape[1]]
+    l, r = l[r > 1], r[r > 1]
+    for idx in range(len(r)):
+        sat |= (xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx] * 2)) & (
+            xp.abs(col - l[idx, 1]) < xp.ceil(xp.min([r[idx] * 0.5, 7]))
+        )
+        sat |= xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx] * 0.75)
+
+    return ~sat

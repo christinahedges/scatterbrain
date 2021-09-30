@@ -1,7 +1,8 @@
 import os
 
-from scatterbrain import BackDrop, __version__
+from scatterbrain import BackDrop, __version__, PACKAGEDIR
 from scatterbrain.designmatrix import *
+import fitsio
 
 
 def test_version():
@@ -32,7 +33,9 @@ def test_design_matrix():
 
 
 def test_backdrop_cutout():
-    frames = xp.random.normal(size=(2, 128, 128)) + 100
+    fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
+    f = fitsio.read(fname).astype(xp.float32)[:128, 45 : 128 + 45]
+    frames = xp.asarray([f, f], dtype=xp.float32)
     b = BackDrop(cutout_size=128)
     b.fit_model(frames)
     assert len(b.weights_full) == 2
@@ -42,7 +45,9 @@ def test_backdrop_cutout():
 
 
 def test_backdrop():
-    frames = xp.random.normal(size=(2, 2048, 2048)) + 100
+    fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
+    f = fitsio.read(fname).astype(xp.float32)[:2048, 45 : 2048 + 45]
+    frames = xp.asarray([f, f], dtype=xp.float32)
     b = BackDrop()
     b.fit_model(frames)
     assert len(b.weights_full) == 2
