@@ -1,9 +1,9 @@
 """basic class?"""
-from .cupy_numpy_imports import *
-
-from .utils import _spline_basis_vector
 from abc import ABC, abstractmethod
 from copy import deepcopy
+
+from .cupy_numpy_imports import *
+from .utils import _spline_basis_vector
 
 
 class design_matrix(ABC):

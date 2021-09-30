@@ -1,15 +1,14 @@
-import fitsio
 import numpy as np
 from tqdm import tqdm
-from .utils import get_star_mask
+
+from .cupy_numpy_imports import *
 from .designmatrix import (
-    radial_design_matrix,
     cartesian_design_matrix,
+    radial_design_matrix,
     spline_design_matrix,
     strap_design_matrix,
 )
-
-from .cupy_numpy_imports import *
+from .utils import get_star_mask
 
 
 class BackDrop(object):

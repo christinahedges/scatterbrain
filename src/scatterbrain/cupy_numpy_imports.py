@@ -1,6 +1,7 @@
 import os
-import numpy as np
+
 import fitsio
+import numpy as np
 
 try:
     if os.getenv("USE_CUPY") in ["True", "T", "true"]:

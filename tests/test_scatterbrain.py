@@ -1,7 +1,7 @@
-from scatterbrain import __version__
-from scatterbrain.designmatrix import *
-from scatterbrain import BackDrop
 import os
+
+from scatterbrain import BackDrop, __version__
+from scatterbrain.designmatrix import *
 
 
 def test_version():
