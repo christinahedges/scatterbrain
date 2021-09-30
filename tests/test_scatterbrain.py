@@ -34,6 +34,7 @@ def test_design_matrix():
 
 def test_backdrop_cutout():
     fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
+    print(fname)
     f = fitsio.read(fname).astype(xp.float32)[:128, 45 : 128 + 45]
     frames = xp.asarray([f, f], dtype=xp.float32)
     b = BackDrop(cutout_size=128)
@@ -42,10 +43,13 @@ def test_backdrop_cutout():
     assert len(b.weights_basic) == 2
     model = b.model(0)
     assert model.shape == (128, 128)
+    assert np.isfinite(b.average_frame).all()
+    assert b.average_frame.shape == (128, 128)
 
 
 def test_backdrop():
     fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
+    print(fname)
     f = fitsio.read(fname).astype(xp.float32)[:2048, 45 : 2048 + 45]
     frames = xp.asarray([f, f], dtype=xp.float32)
     b = BackDrop()

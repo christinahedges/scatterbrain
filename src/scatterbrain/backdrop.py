@@ -61,6 +61,8 @@ class BackDrop(object):
         self.weights_basic = []
         self.weights_full = []
         self.jitter = []
+        self._average_frame = xp.zeros(self.shape)
+        self._average_frame_count = 0
 
     def update_sigma_f(self, sigma_f):
         self.A1.update_sigma_f(sigma_f)
@@ -69,6 +71,8 @@ class BackDrop(object):
     def clean(self):
         self.weights_basic = []
         self.weights_full = []
+        self._average_frame = xp.zeros(self.shape)
+        self._average_frame_count = 0
 
     def __repr__(self):
         return f"BackDrop CCD:{self.ccd} ({len(self.weights_basic)} frames)"
@@ -119,7 +123,13 @@ class BackDrop(object):
         self._fit_full(res)
         res = res - self._model_full(-1)
         self.jitter.append(res[self.jitter_mask])
+        self._average_frame += res
+        self._average_frame_count += 1
         return
+
+    @property
+    def average_frame(self):
+        return self._average_frame / self._average_frame_count
 
     def fit_model(self, flux_cube, test_frame=0):
         if flux_cube.ndim != 3:

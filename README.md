@@ -10,3 +10,4 @@
 
 * Add documentation
 * Importing `cupy` or `numpy` in the way we are currently is breaking flake8
+* loading and saving
