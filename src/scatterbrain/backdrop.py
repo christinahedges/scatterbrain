@@ -11,9 +11,34 @@ from .utils import get_sat_mask, get_star_mask
 
 
 class BackDrop(object):
+    """Class for working with TESS data to fit and use scattered background models.
+
+    BackDrop will automatically set up a reasonable background model for you. If you
+    want to tweak the model, check out the `design_matrix` API.
+    """
+
     def __init__(
         self, column=None, row=None, ccd=3, sigma_f=None, nknots=40, cutout_size=2048
     ):
+        """Initialize a `BackDrop` object either for fitting or loading a model.
+
+        Parameters
+        ----------
+        column : None or xp.ndarray
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        ccd : int
+            CCD number
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is equal weights.
+        nknots : int
+                Number of knots to for spline matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+
+        """
+
         self.A1 = radial_design_matrix(
             column=column,
             row=row,
@@ -68,6 +93,7 @@ class BackDrop(object):
         self.A2.update_sigma_f(sigma_f)
 
     def clean(self):
+        """Resets the weights and average frame"""
         self.weights_basic = []
         self.weights_full = []
         self._average_frame = xp.zeros(self.shape)
@@ -77,6 +103,7 @@ class BackDrop(object):
         return f"BackDrop CCD:{self.ccd} ({len(self.weights_basic)} frames)"
 
     def _build_masks(self, frame):
+        """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
         # if frame.shape != (2048, 2048):
         #     raise ValueError("Pass a frame that is (2048, 2048)")
         star_mask = get_star_mask(frame)
@@ -97,21 +124,34 @@ class BackDrop(object):
         return
 
     def _fit_basic(self, flux):
+        """Fit the first design matrix"""
         self.weights_basic.append(self.A1.fit_frame(xp.log10(flux)))
 
     def _fit_full(self, flux):
+        """Fit the second design matrix"""
         self.weights_full.append(self.A2.fit_frame(flux))
 
     def _model_basic(self, tdx):
+        """Model from the first design matrix"""
         return xp.power(10, self.A1.dot(self.weights_basic[tdx])).reshape(self.shape)
 
     def _model_full(self, tdx):
+        """Model from the second design matrix"""
         return self.A2.dot(self.weights_full[tdx]).reshape(self.shape)
 
-    def model(self, tdx):
-        return self._model_basic(tdx) + self._model_full(tdx)
+    def model(self, time_index):
+        """Build a model for a frame with index `time_index`"""
+        return self._model_basic(time_index) + self._model_full(time_index)
 
     def fit_frame(self, frame):
+        """Fit a single frame of TESS data. This will append to the list properties
+        `self.weights_basic`, `self.weights_full`, `self.jitter`.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            2D array of values, must be shape `(self.cutout_size, self.cutout_size)`
+        """
         if not frame.shape == (self.cutout_size, self.cutout_size):
             raise ValueError(f"Frame is not ({self.cutout_size}, {self.cutout_size})")
         self._fit_basic(frame)

@@ -1,4 +1,4 @@
-"""basic hack utilities"""
+"""basic utility functions"""
 from .cupy_numpy_imports import xp
 
 
@@ -7,6 +7,9 @@ def _spline_basis_vector(x, degree, i, knots):
     for the ith knot.
     See https://en.wikipedia.org/wiki/B-spline for a definition of B-spline
     basis vectors
+
+    NOTE: This is lifted out of the funcs I wrote for lightkurve
+
     Parameters
     ----------
     x : cp.ndarray

@@ -1,0 +1,28 @@
+site_name: scatterbrain
+nav:
+    - Design Matrix API: design_matrix.md
+    - BackDrop API: backdrop.md
+
+theme:
+  name: "material"
+  icon:
+    logo: material/brain
+  palette:
+    scheme: default
+    primary: red
+    accent: blue
+repo_url: https://github.com/christinahedges/scatterbrain
+plugins:
+  - search
+  - mkdocs-jupyter
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          selection:
+            docstring_style: "numpy"
+          rendering:
+            show_source: false
+      custom_templates: templates
+      watch:
+        - src/scatterbrain
