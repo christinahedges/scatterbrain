@@ -232,6 +232,14 @@ optional = false
 python-versions = ">=2.7"
 
 [[package]]
+name = "fbpca"
+version = "1.0"
+description = "Fast computations of PCA/SVD/eigendecompositions via randomized methods"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "fitsio"
 version = "1.1.5"
 description = "A full featured python library to read from and write to FITS files."
@@ -1395,7 +1403,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.1,<3.10"
-content-hash = "a21df32f99eb6566aa1497e6aae0a53a09a183649949890122172990489619bb"
+content-hash = "9bccd9a269c13146378847dc37f919dd48c789a87cdcfcc4f1a1a7ccef6ee272"
 
 [metadata.files]
 anyio = [
@@ -1552,6 +1560,10 @@ docstring-parser = [
 entrypoints = [
     {file = "entrypoints-0.3-py2.py3-none-any.whl", hash = "sha256:589f874b313739ad35be6e0cd7efde2a4e9b6fea91edcc34e58ecbb8dbe56d19"},
     {file = "entrypoints-0.3.tar.gz", hash = "sha256:c70dd71abe5a8c85e55e12c19bd91ccfeec11a6e99044204511f9ed547d48451"},
+]
+fbpca = [
+    {file = "fbpca-1.0.macosx-10.9-x86_64.exe", hash = "sha256:1a06e770fb618a29f0ab57077dffa36e4501e7b339220bed2e7e712f3934b00e"},
+    {file = "fbpca-1.0.tar.gz", hash = "sha256:150677642479663f317fdbb5e06dab3f98721cf7031bb4a84113d7a631c472d1"},
 ]
 fitsio = [
     {file = "fitsio-1.1.5.tar.gz", hash = "sha256:3460184af18d8ae10d2920a91c7755574f80feb6a5cb80689b34e56ea2a098d2"},
