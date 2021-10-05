@@ -5,7 +5,5 @@
 
 # TODO
 
-* add quality mask for 512 strips being bad
-* loading and saving
 * add radial spline dm
 * add cholesky batch solve

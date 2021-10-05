@@ -4,6 +4,7 @@ import os
 import fitsio
 import numpy as np
 
+
 try:
     if os.getenv("USE_CUPY") in ["True", "T", "true"]:
         import cupy as xp
@@ -13,7 +14,7 @@ try:
             return xp.asarray(load_image_numpy(fname, cutout_size=cutout_size))
 
         def load_image(fname, cutout_size=2048):
-            return load_image_cupy(fname, cutout_size=cutout_size)
+            return load_image_cupy(fname, cutout_size=cutout_size).astype(xp.float32)
 
     else:
         raise ImportError
@@ -23,7 +24,7 @@ except ImportError:
     from scipy import sparse
 
     def load_image(fname, cutout_size=2048):
-        return load_image_numpy(fname, cutout_size=cutout_size)
+        return load_image_numpy(fname, cutout_size=cutout_size).astype(xp.float32)
 
 
 def load_image_numpy(fname, cutout_size=2048):

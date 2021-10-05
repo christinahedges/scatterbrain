@@ -1,4 +1,6 @@
 """basic utility functions"""
+import fitsio
+import numpy as np
 from fbpca import pca
 from scipy.signal import medfilt
 
@@ -137,19 +139,20 @@ def _package_jitter(backdrop, xpca_components=20):
     """
 
     backdrop.jitter = xp.asarray(backdrop.jitter)
+    finite = np.isfinite(backdrop.jitter).all(axis=1)
     # If there aren't enough jitter components, just return them.
     if backdrop.jitter.shape[0] < 40:
         # Not enough times
         return None
-    if backdrop.jitter.shape[1] < 50:
+    if finite.sum() < 50:
         # Not enough pixels
         return backdrop.jitter.copy()
 
     # We split at data downlinks where there is a gap of at least 0.2 days
-    breaks = xp.where(xp.diff(backdrop.tstart) > 0.2)[0] + 1
-    breaks = xp.hstack([0, breaks, len(backdrop.tstart)])
+    breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
+    breaks = xp.hstack([0, breaks, len(backdrop.tstart[finite])])
 
-    jitter_short = backdrop.jitter.copy()
+    jitter_short = backdrop.jitter[finite].copy()
 
     nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
     nb = [nb if (nb % 2) == 1 else nb + 1][0]
@@ -158,7 +161,10 @@ def _package_jitter(backdrop, xpca_components=20):
         return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
 
     jitter_medium = xp.hstack(
-        [smooth(backdrop.jitter[x1:x2]) for x1, x2 in zip(breaks[:-1], breaks[1:])]
+        [
+            smooth(backdrop.jitter[finite][x1:x2])
+            for x1, x2 in zip(breaks[:-1], breaks[1:])
+        ]
     ).T
 
     U1, s, V = pca(jitter_short - jitter_medium, xpca_components, n_iter=10)
@@ -171,4 +177,15 @@ def _package_jitter(backdrop, xpca_components=20):
         ]
     )
     X = xp.hstack([X[:, idx::xpca_components] for idx in range(xpca_components)])
-    backdrop.jitter = X
+    Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
+    Xall[finite] = X
+    backdrop.jitter = Xall
+
+
+def test_strip(fname):
+    """Test whether any of the CCD strips are saturated"""
+    f = np.median(
+        np.abs(fitsio.read(fname)[:10, 45 : 2048 + 45].mean(axis=0)).reshape((4, 512)),
+        axis=1,
+    )
+    return f > 10000
