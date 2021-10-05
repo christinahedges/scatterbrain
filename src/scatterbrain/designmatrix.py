@@ -1,4 +1,4 @@
-"""basic class?"""
+"""Class for working with design matrices"""
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
@@ -7,6 +7,30 @@ from .utils import _spline_basis_vector
 
 
 class design_matrix(ABC):
+    """
+    Base class to store design matrices. This is an abstract base class.
+
+    `design_matrix` objects have the following properties.
+
+    Attributes
+    ----------
+    name : str
+        Name of the design matrix
+    prior_mu : xp.ndarray, int or float
+        The prior mean of the design matrix components
+    prior_sigma : xp.ndarray, int or float
+        The prior standard deviation of the design matrix components
+    sigma_f : xp.ndarray
+        The weights for each pixel in the design matrix. Default is
+        equal weights.
+    A : xp.ndarray
+        The design matrix array.
+    sigma_w_inv: xp.ndarray
+            Inverse covariance matrix of the design matrix
+    shape : tuple
+        Shape of the design matrix
+    """
+
     def __init__(self, name="DM", sigma_f=None, prior_sigma=None, prior_mu=None):
         self.name = name
         self.A = self._build()
@@ -22,6 +46,7 @@ class design_matrix(ABC):
         self.update_sigma_f(sigma_f)
 
     def update_sigma_f(self, sigma_f):
+        """Update the `sigma_f` values with new ones."""
         if sigma_f is None:
             self.sigma_f = xp.ones(self.shape[0])
         elif sigma_f.ndim == 2:
@@ -35,6 +60,7 @@ class design_matrix(ABC):
         self._build_sigma_w_inv()
 
     def _validate(self):
+        """Check that the priors are the correct shape"""
         if self.A is None:
             return
         if isinstance(self.prior_mu, (int, float)):
@@ -49,6 +75,7 @@ class design_matrix(ABC):
                 raise ValueError(f"`prior_sigma` must be shape {self.shape[1]}")
 
     def _build_sigma_w_inv(self):
+        """Build `sigma_w_inv` and store it so we don't have to remake it."""
         self.AT = self.A.T
         if sparse.issparse(self.A):
             self.sigma_w_inv = self.AT.dot(
@@ -61,6 +88,8 @@ class design_matrix(ABC):
 
     @abstractmethod
     def _build(self):
+        """This method MUST be replaced by subclass"""
+
         return
 
     @property
@@ -71,9 +100,11 @@ class design_matrix(ABC):
         return f"{self.name} {self.shape}"
 
     def copy(self):
+        """Create a deep copy of `self`"""
         return deepcopy(self)
 
     def join(self, other):
+        """Join two design matrices together, by stacking them horizontally."""
         copy = self.copy()
         if sparse.issparse(copy.A) and sparse.issparse(other.A):
             copy.A = sparse.hstack([copy.A, other.A]).tocsr()
@@ -96,6 +127,18 @@ class design_matrix(ABC):
         return self.join(other)
 
     def fit_frame(self, flux):
+        """Fit a given frame of data
+
+        Parameters
+        ----------
+        flux : np.ndarray
+            2D array of values, must be shape `(self.shape[1]**0.5, self.shape[1]**0.5)`
+
+        Returns
+        -------
+        weights : np.ndarray
+            1D array of weights, shape `self.shape[0]`, i.e. number of components
+        """
         B = (
             self.AT.dot(flux.ravel() / self.sigma_f)
             + self.prior_mu / self.prior_sigma ** 2
@@ -103,6 +146,18 @@ class design_matrix(ABC):
         return xp.linalg.solve(self.sigma_w_inv, B)
 
     def fit_batch(self, flux_cube):
+        """Fit a given cube of data
+
+        Parameters
+        ----------
+        flux : np.ndarray
+            3D array of values, must be shape `(N, self.shape[1]**0.5, self.shape[1]**0.5)`
+
+        Returns
+        -------
+        weights : np.ndarray
+            2D array of weights, shape `(N, self.shape[0])`
+        """
         B = xp.asarray(
             [
                 self.AT.dot(flux.ravel() / self.sigma_f)
@@ -113,10 +168,44 @@ class design_matrix(ABC):
         return xp.linalg.solve(self.sigma_w_inv, B).T
 
     def dot(self, other):
+        """Takes the dot product of self with a vector."""
         return self.A.dot(other)
 
 
 class TESS_design_matrix(design_matrix):
+    """`design_matrix` Class specifically for working with TESS. Note you can not initialize this class, it has no `_build` method.
+
+    This object hard codes certain values, for example that TESS images are 2048x2048 pixels.
+
+    Attributes
+    ----------
+    ccd : int
+        CCD number
+    column : None or xp.ndarray
+        The column numbers to evaluate the design matrix at. If None, uses all pixels.
+    row : None or xp.ndarray
+        The column numbers to evaluate the design matrix at. If None, uses all pixels.
+    cutout_size : int
+            Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+    bore_pixel : tuple
+            Location of the pixel closest to the telescope boresight
+    name : str
+            Name of the design matrix
+    prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+    prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+    sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+    A : xp.ndarray
+            The design matrix array.
+    sigma_w_inv: xp.ndarray
+                    Inverse covariance matrix of the design matrix
+    shape : tuple
+            Shape of the design matrix
+    """
+
     def __build(self):
         raise ValueError("Can not instantiate a `TESS_design_matrix`")
 
@@ -131,6 +220,29 @@ class TESS_design_matrix(design_matrix):
         name="TESS",
         cutout_size=2048,
     ):
+        """
+        Create a `TESS_design_matrix` object. Note, you can not initialize this object as it has no `_build` method.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
         self.cutout_size = cutout_size
         self.ccd = ccd
         if self.ccd in [1, 3]:
@@ -160,6 +272,8 @@ class TESS_design_matrix(design_matrix):
 
 
 class cartesian_design_matrix(TESS_design_matrix):
+    """Design matrix for 2D Polynomial in cartesian space"""
+
     def _build(self):
         A1 = xp.vstack([self.column.ravel() ** idx for idx in range(self.npoly)]).T
         A2 = xp.vstack([self.row.ravel() ** idx for idx in range(self.npoly)]).T
@@ -178,6 +292,31 @@ class cartesian_design_matrix(TESS_design_matrix):
         row=None,
         cutout_size=2048,
     ):
+        """
+        Create a `cartesian_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        npoly : int
+                Order of polymomial to create.
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
         self.npoly = npoly
         super().__init__(
             name="cartesian",
@@ -192,6 +331,8 @@ class cartesian_design_matrix(TESS_design_matrix):
 
 
 class radial_design_matrix(TESS_design_matrix):
+    """Design matrix for creating a polynomial in radial dimension from boresight pixel"""
+
     def _build(self):
         self.rad = xp.hypot(self.column, self.row).ravel() / xp.sqrt(2)
         A = xp.vstack([self.rad.ravel() ** idx for idx in range(self.npoly)]).T
@@ -208,6 +349,31 @@ class radial_design_matrix(TESS_design_matrix):
         row=None,
         cutout_size=2048,
     ):
+        """
+        Create a `radial_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        npoly : int
+                Order of polymomial to create.
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
         self.npoly = npoly
         super().__init__(
             name="radial",
@@ -222,6 +388,8 @@ class radial_design_matrix(TESS_design_matrix):
 
 
 class strap_design_matrix(TESS_design_matrix):
+    """Design matrix for creating column-wise offsets for TESS straps"""
+
     def _build(self):
         d = sparse.csr_matrix(xp.diag(xp.ones(self.column.shape[1])))
         return sparse.hstack([d] * self.column.shape[0]).T.tocsr()
@@ -232,12 +400,33 @@ class strap_design_matrix(TESS_design_matrix):
         prior_sigma=None,
         prior_mu=None,
         ccd=3,
-        npoly=10,
         column=None,
         row=None,
         cutout_size=2048,
     ):
-        self.npoly = npoly
+        """
+        Create a `spline_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
         super().__init__(
             name="strap",
             sigma_f=sigma_f,
@@ -251,6 +440,8 @@ class strap_design_matrix(TESS_design_matrix):
 
 
 class spline_design_matrix(TESS_design_matrix):
+    """Design matrix for creating a 2D cartesian spline."""
+
     def _build(self):
         """Builds a 2048**2 x N matrix"""
         x = self.column[0] + (self.bore_pixel[1] / self.cutout_size)
@@ -309,6 +500,33 @@ class spline_design_matrix(TESS_design_matrix):
         row=None,
         cutout_size=2048,
     ):
+        """
+        Create a `cartesian_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        nknots : int
+                Number of knots to use
+        degree : int
+                Degree of basis spline
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
         self.degree = degree
         self.nknots = nknots
         super().__init__(
