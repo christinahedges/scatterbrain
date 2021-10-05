@@ -1,0 +1,1747 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.2.2, mkdocs-material-7.3.1">
+    
+    
+      
+        <title>Design Matrix API - scatterbrain</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.1c75ef36.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.3f5d1f46.min.css">
+        
+          
+          
+          <meta name="theme-color" content="#ef5552">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    
+      
+
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="red" data-md-color-accent="blue">
+  
+    
+    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#documentation-for-design_matrix" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="scatterbrain" class="md-header__button md-logo" aria-label="scatterbrain" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.33 12.91c.09 1.55-.62 3.04-1.89 3.95l.77 1.49c.23.45.26.98.06 1.45-.19.47-.58.84-1.06 1l-.79.25a1.687 1.687 0 0 1-1.86-.55L14.44 18c-.89-.15-1.73-.53-2.44-1.1-.5.15-1 .23-1.5.23-.88 0-1.76-.27-2.5-.79-.53.16-1.07.23-1.62.22-.79.01-1.57-.15-2.3-.45a4.105 4.105 0 0 1-2.43-3.61c-.08-.72.04-1.45.35-2.11-.29-.75-.32-1.57-.07-2.33C2.3 7.11 3 6.32 3.87 5.82c.58-1.69 2.21-2.82 4-2.7 1.6-1.5 4.05-1.66 5.83-.37.42-.11.86-.17 1.3-.17 1.36-.03 2.65.57 3.5 1.64 2.04.53 3.5 2.35 3.58 4.47.05 1.11-.25 2.2-.86 3.13.07.36.11.72.11 1.09m-5-1.41c.57.07 1.02.5 1.02 1.07a1 1 0 0 1-1 1h-.63c-.32.9-.88 1.69-1.62 2.29.25.09.51.14.77.21 5.13-.07 4.53-3.2 4.53-3.25a2.592 2.592 0 0 0-2.69-2.49 1 1 0 0 1-1-1 1 1 0 0 1 1-1c1.23.03 2.41.49 3.33 1.3.05-.29.08-.59.08-.89-.06-1.24-.62-2.32-2.87-2.53-1.25-2.96-4.4-1.32-4.4-.4-.03.23.21.72.25.75a1 1 0 0 1 1 1c0 .55-.45 1-1 1-.53-.02-1.03-.22-1.43-.56-.48.31-1.03.5-1.6.56-.57.05-1.04-.35-1.07-.9a.968.968 0 0 1 .88-1.1c.16-.02.94-.14.94-.77 0-.66.25-1.29.68-1.79-.92-.25-1.91.08-2.91 1.29C6.75 5 6 5.25 5.45 7.2 4.5 7.67 4 8 3.78 9c1.08-.22 2.19-.13 3.22.25.5.19.78.75.59 1.29-.19.52-.77.78-1.29.59-.73-.32-1.55-.34-2.3-.06-.32.27-.32.83-.32 1.27 0 .74.37 1.43 1 1.83.53.27 1.12.41 1.71.4-.15-.26-.28-.53-.39-.81a1.038 1.038 0 0 1 1.96-.68c.4 1.14 1.42 1.92 2.62 2.05 1.37-.07 2.59-.88 3.19-2.13.23-1.38 1.34-1.5 2.56-1.5m2 7.47-.62-1.3-.71.16 1 1.25.33-.11m-4.65-8.61a1 1 0 0 0-.91-1.03c-.71-.04-1.4.2-1.93.67-.57.58-.87 1.38-.84 2.19a1 1 0 0 0 1 1c.57 0 1-.45 1-1 0-.27.07-.54.23-.76.12-.1.27-.15.43-.15.55.03 1.02-.38 1.02-.92z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            scatterbrain
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design Matrix API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/christinahedges/scatterbrain/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="scatterbrain" class="md-nav__button md-logo" aria-label="scatterbrain" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.33 12.91c.09 1.55-.62 3.04-1.89 3.95l.77 1.49c.23.45.26.98.06 1.45-.19.47-.58.84-1.06 1l-.79.25a1.687 1.687 0 0 1-1.86-.55L14.44 18c-.89-.15-1.73-.53-2.44-1.1-.5.15-1 .23-1.5.23-.88 0-1.76-.27-2.5-.79-.53.16-1.07.23-1.62.22-.79.01-1.57-.15-2.3-.45a4.105 4.105 0 0 1-2.43-3.61c-.08-.72.04-1.45.35-2.11-.29-.75-.32-1.57-.07-2.33C2.3 7.11 3 6.32 3.87 5.82c.58-1.69 2.21-2.82 4-2.7 1.6-1.5 4.05-1.66 5.83-.37.42-.11.86-.17 1.3-.17 1.36-.03 2.65.57 3.5 1.64 2.04.53 3.5 2.35 3.58 4.47.05 1.11-.25 2.2-.86 3.13.07.36.11.72.11 1.09m-5-1.41c.57.07 1.02.5 1.02 1.07a1 1 0 0 1-1 1h-.63c-.32.9-.88 1.69-1.62 2.29.25.09.51.14.77.21 5.13-.07 4.53-3.2 4.53-3.25a2.592 2.592 0 0 0-2.69-2.49 1 1 0 0 1-1-1 1 1 0 0 1 1-1c1.23.03 2.41.49 3.33 1.3.05-.29.08-.59.08-.89-.06-1.24-.62-2.32-2.87-2.53-1.25-2.96-4.4-1.32-4.4-.4-.03.23.21.72.25.75a1 1 0 0 1 1 1c0 .55-.45 1-1 1-.53-.02-1.03-.22-1.43-.56-.48.31-1.03.5-1.6.56-.57.05-1.04-.35-1.07-.9a.968.968 0 0 1 .88-1.1c.16-.02.94-.14.94-.77 0-.66.25-1.29.68-1.79-.92-.25-1.91.08-2.91 1.29C6.75 5 6 5.25 5.45 7.2 4.5 7.67 4 8 3.78 9c1.08-.22 2.19-.13 3.22.25.5.19.78.75.59 1.29-.19.52-.77.78-1.29.59-.73-.32-1.55-.34-2.3-.06-.32.27-.32.83-.32 1.27 0 .74.37 1.43 1 1.83.53.27 1.12.41 1.71.4-.15-.26-.28-.53-.39-.81a1.038 1.038 0 0 1 1.96-.68c.4 1.14 1.42 1.92 2.62 2.05 1.37-.07 2.59-.88 3.19-2.13.23-1.38 1.34-1.5 2.56-1.5m2 7.47-.62-1.3-.71.16 1 1.25.33-.11m-4.65-8.61a1 1 0 0 0-.91-1.03c-.71-.04-1.4.2-1.93.67-.57.58-.87 1.38-.84 2.19a1 1 0 0 0 1 1c.57 0 1-.45 1-1 0-.27.07-.54.23-.76.12-.1.27-.15.43-.15.55.03 1.02-.38 1.02-.92z"/></svg>
+
+    </a>
+    scatterbrain
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/christinahedges/scatterbrain/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Home
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Design Matrix API
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Design Matrix API
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix" class="md-nav__link">
+    design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.copy" class="md-nav__link">
+    copy()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.dot" class="md-nav__link">
+    dot()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.fit_batch" class="md-nav__link">
+    fit_batch()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.fit_frame" class="md-nav__link">
+    fit_frame()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.join" class="md-nav__link">
+    join()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.update_sigma_f" class="md-nav__link">
+    update_sigma_f()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.TESS_design_matrix" class="md-nav__link">
+    TESS_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="TESS_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.TESS_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.cartesian_design_matrix" class="md-nav__link">
+    cartesian_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="cartesian_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.cartesian_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.radial_design_matrix" class="md-nav__link">
+    radial_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="radial_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.radial_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix" class="md-nav__link">
+    spline_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="spline_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix" class="md-nav__link">
+    spline_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="spline_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backdrop/" class="md-nav__link">
+        BackDrop API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo/" class="md-nav__link">
+        Demo notebook for scatterbrain
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix" class="md-nav__link">
+    design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.copy" class="md-nav__link">
+    copy()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.dot" class="md-nav__link">
+    dot()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.fit_batch" class="md-nav__link">
+    fit_batch()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.fit_frame" class="md-nav__link">
+    fit_frame()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.join" class="md-nav__link">
+    join()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.design_matrix.update_sigma_f" class="md-nav__link">
+    update_sigma_f()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.TESS_design_matrix" class="md-nav__link">
+    TESS_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="TESS_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.TESS_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.cartesian_design_matrix" class="md-nav__link">
+    cartesian_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="cartesian_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.cartesian_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.radial_design_matrix" class="md-nav__link">
+    radial_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="radial_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.radial_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix" class="md-nav__link">
+    spline_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="spline_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix" class="md-nav__link">
+    spline_design_matrix
+  </a>
+  
+    <nav class="md-nav" aria-label="spline_design_matrix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.designmatrix.spline_design_matrix.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/christinahedges/scatterbrain/edit/master/docs/design_matrix.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="documentation-for-design_matrix">Documentation for <code>design_matrix</code></h1>
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.design_matrix            (<span title="abc.ABC">ABC</span>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p>Base class to store design matrices. This is an abstract base class.</p>
+<p><code>design_matrix</code> objects have the following properties.</p>
+
+<p><strong>Attributes:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name of the design matrix</p></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+      </tr>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+      </tr>
+      <tr>
+        <td><code>A</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The design matrix array.</p></td>
+      </tr>
+      <tr>
+        <td><code>sigma_w_inv</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>Inverse covariance matrix of the design matrix</p></td>
+      </tr>
+      <tr>
+        <td><code>shape</code></td>
+        <td><code>tuple</code></td>
+        <td><p>Shape of the design matrix</p></td>
+      </tr>
+  </tbody>
+</table>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.copy" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a deep copy of <code>self</code></p>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.dot" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Takes the dot product of self with a vector.</p>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.fit_batch" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">fit_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flux_cube</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Fit a given cube of data</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>flux</code></td>
+        <td><code>np.ndarray</code></td>
+        <td><p>3D array of values, must be shape <code>(N, self.shape[1]**0.5, self.shape[1]**0.5)</code></p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>np.ndarray</code></td>
+      <td><p>2D array of weights, shape <code>(N, self.shape[0])</code></p></td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.fit_frame" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">fit_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flux</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Fit a given frame of data</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>flux</code></td>
+        <td><code>np.ndarray</code></td>
+        <td><p>2D array of values, must be shape <code>(self.shape[1]**0.5, self.shape[1]**0.5)</code></p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>np.ndarray</code></td>
+      <td><p>1D array of weights, shape <code>self.shape[0]</code>, i.e. number of components</p></td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.join" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Join two design matrices together, by stacking them horizontally.</p>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.design_matrix.update_sigma_f" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">update_sigma_f</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Update the <code>sigma_f</code> values with new ones.</p>
+
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.TESS_design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.TESS_design_matrix            (<a title="scatterbrain.designmatrix.design_matrix" href="#scatterbrain.designmatrix.design_matrix">design_matrix</a>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p><code>design_matrix</code> Class specifically for working with TESS. Note you can not initialize this class, it has no <code>_build</code> method.</p>
+<p>This object hard codes certain values, for example that TESS images are 2048x2048 pixels.</p>
+
+<p><strong>Attributes:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+      </tr>
+      <tr>
+        <td><code>bore_pixel</code></td>
+        <td><code>tuple</code></td>
+        <td><p>Location of the pixel closest to the telescope boresight</p></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name of the design matrix</p></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+      </tr>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+      </tr>
+      <tr>
+        <td><code>A</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The design matrix array.</p></td>
+      </tr>
+      <tr>
+        <td><code>sigma_w_inv</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>Inverse covariance matrix of the design matrix</p></td>
+      </tr>
+      <tr>
+        <td><code>shape</code></td>
+        <td><code>tuple</code></td>
+        <td><p>Shape of the design matrix</p></td>
+      </tr>
+  </tbody>
+</table>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.TESS_design_matrix.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_mu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;TESS&#39;</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a <code>TESS_design_matrix</code> object. Note, you can not initialize this object as it has no <code>_build</code> method.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><code>3</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name for design matrix</p></td>
+        <td><code>&#39;TESS&#39;</code></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+        <td><code>2048</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.cartesian_design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.cartesian_design_matrix            (<a title="scatterbrain.designmatrix.TESS_design_matrix" href="#scatterbrain.designmatrix.TESS_design_matrix">TESS_design_matrix</a>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p>Design matrix for 2D Polynomial in cartesian space</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.cartesian_design_matrix.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_mu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">npoly</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a <code>cartesian_design_matrix</code> object.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><code>3</code></td>
+      </tr>
+      <tr>
+        <td><code>npoly</code></td>
+        <td><code>int</code></td>
+        <td><p>Order of polymomial to create.</p></td>
+        <td><code>5</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name for design matrix</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+        <td><code>2048</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.radial_design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.radial_design_matrix            (<a title="scatterbrain.designmatrix.TESS_design_matrix" href="#scatterbrain.designmatrix.TESS_design_matrix">TESS_design_matrix</a>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p>Design matrix for creating a polynomial in radial dimension from boresight pixel</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.radial_design_matrix.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_mu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">npoly</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a <code>radial_design_matrix</code> object.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><code>3</code></td>
+      </tr>
+      <tr>
+        <td><code>npoly</code></td>
+        <td><code>int</code></td>
+        <td><p>Order of polymomial to create.</p></td>
+        <td><code>10</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name for design matrix</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+        <td><code>2048</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.spline_design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.spline_design_matrix            (<a title="scatterbrain.designmatrix.TESS_design_matrix" href="#scatterbrain.designmatrix.TESS_design_matrix">TESS_design_matrix</a>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p>Design matrix for creating a 2D cartesian spline.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.spline_design_matrix.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_mu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">nknots</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a <code>cartesian_design_matrix</code> object.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><code>3</code></td>
+      </tr>
+      <tr>
+        <td><code>nknots</code></td>
+        <td><code>int</code></td>
+        <td><p>Number of knots to use</p></td>
+        <td><code>40</code></td>
+      </tr>
+      <tr>
+        <td><code>degree</code></td>
+        <td><code>int</code></td>
+        <td><p>Degree of basis spline</p></td>
+        <td><code>2</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name for design matrix</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+        <td><code>2048</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="scatterbrain.designmatrix.spline_design_matrix" class="doc doc-heading">
+        <code>
+scatterbrain.designmatrix.spline_design_matrix            (<a title="scatterbrain.designmatrix.TESS_design_matrix" href="#scatterbrain.designmatrix.TESS_design_matrix">TESS_design_matrix</a>)
+        </code>
+
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+      <p>Design matrix for creating a 2D cartesian spline.</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.designmatrix.spline_design_matrix.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prior_mu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">nknots</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Create a <code>cartesian_design_matrix</code> object.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>sigma_f</code></td>
+        <td><code>xp.ndarray</code></td>
+        <td><p>The weights for each pixel in the design matrix. Default is
+equal weights.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_sigma</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior standard deviation of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>prior_mu</code></td>
+        <td><code>xp.ndarray, int or float</code></td>
+        <td><p>The prior mean of the design matrix components</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><code>3</code></td>
+      </tr>
+      <tr>
+        <td><code>nknots</code></td>
+        <td><code>int</code></td>
+        <td><p>Number of knots to use</p></td>
+        <td><code>40</code></td>
+      </tr>
+      <tr>
+        <td><code>degree</code></td>
+        <td><code>int</code></td>
+        <td><p>Degree of basis spline</p></td>
+        <td><code>2</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>None or xp.ndarray</code></td>
+        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>name</code></td>
+        <td><code>str</code></td>
+        <td><p>Name for design matrix</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>cutout_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
+        <td><code>2048</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        
+        <a href=".." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Home
+            </div>
+          </div>
+        </a>
+      
+      
+        
+        <a href="../backdrop/" class="md-footer__link md-footer__link--next" aria-label="Next: BackDrop API" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              BackDrop API
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        
+          Made with
+          <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+            Material for MkDocs
+          </a>
+        
+        
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.e99e714c.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c7d1b464.min.js"></script>
+      
+    
+  </body>
+</html>
