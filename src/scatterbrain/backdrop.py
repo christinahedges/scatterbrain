@@ -1,6 +1,10 @@
+import os
+
 import fitsio
+from astropy.io import fits
 from tqdm import tqdm
 
+from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, np, xp
 from .designmatrix import (
     cartesian_design_matrix,
@@ -8,7 +12,8 @@ from .designmatrix import (
     spline_design_matrix,
     strap_design_matrix,
 )
-from .utils import _package_jitter, get_sat_mask, get_star_mask
+from .utils import _package_jitter, get_sat_mask, get_star_mask, test_strip
+from .version import __version__
 
 
 class BackDrop(object):
@@ -20,9 +25,11 @@ class BackDrop(object):
 
     def __init__(
         self,
+        sector,
+        camera,
+        ccd,
         column=None,
         row=None,
-        ccd=3,
         sigma_f=None,
         nknots=40,
         cutout_size=2048,
@@ -34,12 +41,16 @@ class BackDrop(object):
 
         Parameters
         ----------
+        sector : int
+            Sector number
+        camera : int
+            Camera number
+        ccd : int
+            CCD number
         column : None or xp.ndarray
             The column numbers to evaluate the design matrix at. If None, uses all pixels.
         row : None or xp.ndarray
             The column numbers to evaluate the design matrix at. If None, uses all pixels.
-        ccd : int
-            CCD number
         sigma_f : xp.ndarray
             The weights for each pixel in the design matrix. Default is equal weights.
         nknots : int
@@ -48,6 +59,10 @@ class BackDrop(object):
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
 
         """
+
+        self.sector = sector
+        self.camera = camera
+        self.ccd = ccd
 
         self.A1 = radial_design_matrix(
             column=column,
@@ -91,7 +106,6 @@ class BackDrop(object):
             self.row = np.arange(self.cutout_size)
         else:
             self.row = row
-        self.ccd = ccd
         self.weights_basic = []
         self.weights_full = []
         self.jitter = []
@@ -111,6 +125,7 @@ class BackDrop(object):
         self.weights_full = []
         self._average_frame = xp.zeros(self.shape)
         self._average_frame_count = 0
+        self.jitter = []
 
     def __repr__(self):
         return f"BackDrop CCD:{self.ccd} ({len(self.weights_basic)} frames)"
@@ -119,21 +134,24 @@ class BackDrop(object):
         """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
         # if frame.shape != (2048, 2048):
         #     raise ValueError("Pass a frame that is (2048, 2048)")
-        star_mask = get_star_mask(frame)
-        sat_mask = get_sat_mask(frame)
+        if not hasattr(self, "star_mask"):
+            self.star_mask = get_star_mask(frame)
+        if not hasattr(self, "sat_mask"):
+            self.sat_mask = get_sat_mask(frame)
+        if not hasattr(self, "jitter_mask"):
+            if (~self.star_mask & self.sat_mask).sum() > 6000:
+                s = np.random.choice(
+                    (~self.star_mask & self.sat_mask).sum(), size=6000, replace=False
+                )
+                l = np.asarray(np.where(~self.star_mask & self.sat_mask))
+                l = l[:, s]
+                self.jitter_mask = np.zeros((self.cutout_size, self.cutout_size), bool)
+                self.jitter_mask[l[0], l[1]] = True
+            else:
+                self.jitter_mask = (~self.star_mask & self.sat_mask).copy()
         sigma_f = xp.ones(frame.shape)
-        sigma_f[~star_mask | ~sat_mask] = 1e5
+        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
         self.update_sigma_f(sigma_f)
-        if (~star_mask & sat_mask).sum() > 5000:
-            s = np.random.choice(
-                (~star_mask & sat_mask).sum(), size=5000, replace=False
-            )
-            l = np.asarray(np.where(~star_mask & sat_mask))
-            l = l[:, s]
-            self.jitter_mask = np.zeros((self.cutout_size, self.cutout_size), bool)
-            self.jitter_mask[l[0], l[1]] = True
-        else:
-            self.jitter_mask = (~star_mask & sat_mask).copy()
         return
 
     def _fit_basic(self, flux):
@@ -301,29 +319,124 @@ class BackDrop(object):
         else:
             return
 
-    def save(self, outfile="backdrop_weights.npz"):
-        """Save the best fit weights to a file"""
-        xp.savez(outfile, xp.asarray(self.weights_basic), xp.asarray(self.weights_full))
+    def _package_weights_hdulist(self):
+        hdu0 = self.hdu0
+        s = np.argsort(self.tstart)
+        cols = []
+        for key in ["tstart", "tstop", "quality"]:
+            if getattr(self, key) is not None:
+                cols.append(
+                    fits.Column(
+                        name=key,
+                        format="D",
+                        unit="BJD - 2457000",
+                        array=getattr(self, key)[s],
+                    )
+                )
+        hdu1 = fits.BinTableHDU.from_columns(cols, name="TIME")
+        hdu2 = fits.ImageHDU(np.asarray(self.weights_basic)[s], name="WEIGHTS1")
+        hdu3 = fits.ImageHDU(np.asarray(self.weights_full)[s], name="WEIGHTS2")
+        hdu4 = fits.ImageHDU(np.asarray(self.jitter)[s], name="JITTER")
+        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4])
+        return hdul
 
-    def load(self, infile="backdrop_weights.npz"):
-        """Load a file for a set of input parameters."""
-        cpzfile = xp.load(infile)
-        self.weights_basic = list(cpzfile["arr_0"])
-        self.weights_full = cpzfile["arr_1"]
-        if self.column is not None:
+    def save(self, output_dir=None, overwrite=False):
+        """Save a model fit to the scatterbrain data directory."""
+        if not hasattr(self, "weights_basic"):
+            raise ValueError("There is no model to save")
+        self.hdu0 = fits.PrimaryHDU()
+        self.hdu0.header["ORIGIN"] = "tess-backdrop"
+        self.hdu0.header["AUTHOR"] = "christina.l.hedges@nasa.gov"
+        self.hdu0.header["VERSION"] = __version__
+        for key in ["sector", "camera", "ccd", "cutout_size"]:
+            self.hdu0.header[key] = getattr(self, key)
+
+        if output_dir is None:
+            output_dir = f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
+            if output_dir != "":
+                if not os.path.isdir(output_dir):
+                    os.makedirs(output_dir)
+
+        hdul = self._package_weights_hdulist()
+        fname = (
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+        )
+        hdul.writeto(output_dir + fname, overwrite=overwrite)
+
+    def load(self, input, dir=None):
+        """
+        Load a model fit to the tess-backrop data directory.
+
+        Parameters
+        ----------
+        input: tuple or string
+            Either pass a tuple with `(sector, camera, ccd)` or pass
+            a file name in `dir` to load
+        dir : str
+            Optional tring with the directory name
+
+        Returns
+        -------
+        self: `tess_backdrop.SimpleBackDrop` object
+        """
+        if isinstance(input, tuple):
+            if len(input) == 3:
+                sector, camera, ccd = input
+                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
+            else:
+                raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
+        elif isinstance(input, str):
+            fname = input
+        else:
+            raise ValueError("Can not parse input")
+        if dir is None:
+            dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
+        if dir != "":
+            if not os.path.isdir(dir):
+                raise ValueError("No solutions exist")
+
+        with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
+            for key in [
+                "sector",
+                "camera",
+                "ccd",
+                "cutout_size",
+            ]:
+                setattr(self, key, hdu[0].header[key])
+            if "TSTART" in hdu[1].data.names:
+                self.tstart = hdu[1].data["tstart"]
+            if "TSTOP" in hdu[1].data.names:
+                self.tstop = hdu[1].data["tstop"]
+            if "QUALITY" in hdu[1].data.names:
+                self.quality = hdu[1].data["QUALITY"]
+            self.weights_basic = list(hdu[2].data)
+            weights_full = hdu[3].data
             self.weights_full = np.hstack(
-                [
-                    self.weights_full[:, : -self.cutout_size],
-                    self.weights_full[
-                        :, self.weights_full.shape[1] - self.cutout_size + self.column
-                    ],
-                ]
+                [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
             )
-        self.weights_full = list(self.weights_full)
+            self.jitter = hdu[4].data
         return self
 
     @staticmethod
-    def from_files(fnames, batch_size=50, test_frame=None, cutout_size=2048):
+    def from_disk(sector, camera, ccd, row=None, column=None, dir=None):
+        return BackDrop(
+            sector=sector, camera=camera, ccd=ccd, row=row, column=column
+        ).load((sector, camera, ccd), dir=dir)
+
+    @staticmethod
+    def from_tpf(tpf, dir=None):
+        return BackDrop(
+            sector=tpf.sector,
+            camera=tpf.camera,
+            ccd=tpf.ccd,
+            row=np.arange(tpf.shape[1]) + tpf.row,
+            column=np.arange(tpf.shape[2]) + tpf.column,
+        ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
+
+    @staticmethod
+    def from_tess_images(
+        fnames, batch_size=50, test_frame=None, cutout_size=2048, sector=None
+    ):
         """Creates a backdrop model from filenames
 
         Parameters
@@ -347,9 +460,25 @@ class BackDrop(object):
         if not isinstance(fnames[0], (str)):
             raise ValueError("Pass an array of strings")
 
+        if sector is None:
+            try:
+                sector = int(fnames[0].split("-s")[1].split("-")[0])
+            except ValueError:
+                raise ValueError("Can not parse file name for sector number")
+
+        blown_out_strips = np.asarray(
+            [
+                test_strip(fname)
+                for fname in tqdm(
+                    fnames, desc="Finding blown out strips", position=0, leave=True
+                )
+            ]
+        )
         # make a backdrop object
         self = BackDrop(
-            ccd=fitsio.read(fnames[0], ext=1, header=True)[1]["CCD"],
+            sector=sector,
+            camera=fitsio.read_header(fnames[0], ext=1)["CAMERA"],
+            ccd=fitsio.read_header(fnames[0], ext=1)["CCD"],
             cutout_size=cutout_size,
         )
         self.tstart = np.asarray(
@@ -363,6 +492,7 @@ class BackDrop(object):
         self.quality = np.asarray(
             [fitsio.read_header(fname, ext=1)["DQUALITY"] for fname in fnames]
         )
+        self.quality[blown_out_strips.any(axis=1)] |= 8192
         # Step 1: find a good test frame
         if test_frame is None:
             # Test frame is a low flux frame, close to the middle of the dataset.
@@ -387,29 +517,39 @@ class BackDrop(object):
         self._build_masks(load_image(fnames[test_frame], cutout_size=cutout_size))
 
         # Step 2: run as a batch...
-        nbatches = xp.ceil(len(fnames) / batch_size).astype(int)
-        weights_basic, weights_full, jitter = [], [], []
-        l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
-        if l[-1] > len(fnames):
-            l[-1] = len(fnames)
-        for l1, l2 in tqdm(
-            zip(l[:-1], l[1:]),
-            desc=f"Fitting frames in batches of {batch_size}",
-            total=len(l) - 1,
-            leave=True,
-            position=0,
-        ):
-            flux_cube = [
-                load_image(fnames[idx], cutout_size=cutout_size)
-                for idx in np.arange(l1, l2)
-            ]
-            w1, w2, j = self._fit_batch(flux_cube)
-            weights_basic.append(w1)
-            weights_full.append(w2)
-            jitter.append(j)
+        def run_batch(fnames):
+            nbatches = xp.ceil(len(fnames) / batch_size).astype(int)
+            weights_basic, weights_full, jitter = [], [], []
+            l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
+            if l[-1] > len(fnames):
+                l[-1] = len(fnames)
+            for l1, l2 in tqdm(
+                zip(l[:-1], l[1:]),
+                desc=f"Fitting frames in batches of {batch_size}",
+                total=len(l) - 1,
+                leave=True,
+                position=0,
+            ):
+                flux_cube = [
+                    load_image(fnames[idx], cutout_size=cutout_size)
+                    for idx in np.arange(l1, l2)
+                ]
+                w1, w2, j = self._fit_batch(flux_cube)
+                weights_basic.append(w1)
+                weights_full.append(w2)
+                jitter.append(j)
 
-        self.weights_basic = list(xp.vstack(weights_basic))
-        self.weights_full = list(xp.vstack(weights_full))
-        self.jitter = list(xp.vstack(jitter))
+            return xp.vstack(weights_basic), xp.vstack(weights_full), xp.vstack(jitter)
+
+        w1, w2, j = run_batch(fnames[(self.quality & 8192) == 0])
+        self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
+        self.weights_basic[(self.quality & 8192) == 0] = w1
+        self.weights_basic[(self.quality & 8192) != 0] = np.nan
+        self.weights_full = np.zeros((len(fnames), w2.shape[1]))
+        self.weights_full[(self.quality & 8192) == 0] = w2
+        self.weights_full[(self.quality & 8192) != 0] = np.nan
+        self.jitter = np.zeros((len(fnames), j.shape[1]))
+        self.jitter[(self.quality & 8192) == 0] = j
+        self.jitter[(self.quality & 8192) != 0] = np.nan
         _package_jitter(self)
         return self
