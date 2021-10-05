@@ -31,7 +31,7 @@ class BackDrop(object):
         column=None,
         row=None,
         sigma_f=None,
-        nknots=40,
+        nknots=60,
         cutout_size=2048,
         tstart=None,
         tstop=None,
@@ -337,7 +337,8 @@ class BackDrop(object):
         hdu2 = fits.ImageHDU(np.asarray(self.weights_basic)[s], name="WEIGHTS1")
         hdu3 = fits.ImageHDU(np.asarray(self.weights_full)[s], name="WEIGHTS2")
         hdu4 = fits.ImageHDU(np.asarray(self.jitter)[s], name="JITTER")
-        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4])
+        hdu5 = fits.ImageHDU(np.asarray(self.average_frame), name="AVGFRAME")
+        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4, hdu5])
         return hdul
 
     def save(self, output_dir=None, overwrite=False):
@@ -415,6 +416,8 @@ class BackDrop(object):
                 [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
             )
             self.jitter = hdu[4].data
+            self._average_frame = hdu[5].data
+            self._average_frame_count = 1
         return self
 
     @staticmethod
