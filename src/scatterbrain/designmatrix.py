@@ -427,7 +427,6 @@ class strap_design_matrix(TESS_design_matrix):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
-        self.npoly = npoly
         super().__init__(
             name="strap",
             sigma_f=sigma_f,

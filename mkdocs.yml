@@ -1,7 +1,9 @@
 site_name: scatterbrain
 nav:
+    - Home : README.md
     - Design Matrix API: design_matrix.md
     - BackDrop API: backdrop.md
+    - Demo Notebook: demo.ipynb
 
 theme:
   name: "material"
