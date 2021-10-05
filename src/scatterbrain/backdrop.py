@@ -144,12 +144,14 @@ class BackDrop(object):
         return self._model_basic(time_index) + self._model_full(time_index)
 
     def fit_frame(self, frame):
-        """Fit a single frame of TESS data. This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
+        """Fit a single frame of TESS data.
+        This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
 
         Parameters
         ----------
         frame : np.ndarray
-            2D array of values, must be shape `(self.cutout_size, self.cutout_size)`
+            2D array of values, must be shape
+            `(self.cutout_size, self.cutout_size)`
         """
         if not frame.shape == (self.cutout_size, self.cutout_size):
             raise ValueError(f"Frame is not ({self.cutout_size}, {self.cutout_size})")
@@ -176,7 +178,9 @@ class BackDrop(object):
         flux_cube : xp.ndarray or list
             3D array of frames.
         test_frame : int
-            The index of the frame to use as the "reference frame". This reference frame will be used to build masks to set `sigma_f`. It should be the lowest background frame.
+            The index of the frame to use as the "reference frame".
+            This reference frame will be used to build masks to set `sigma_f`.
+            It should be the lowest background frame.
         """
         if isinstance(flux_cube, list):
             if not np.all(
@@ -235,7 +239,9 @@ class BackDrop(object):
         batch_size : int
             Number of frames to fit at once.
         test_frame : int
-            The index of the frame to use as the "reference frame". This reference frame will be used to build masks to set `sigma_f`. It should be the lowest background frame.
+            The index of the frame to use as the "reference frame".
+            This reference frame will be used to build masks to set `sigma_f`.
+            It should be the lowest background frame.
         """
         if isinstance(flux_cube, list):
             if not np.all(
