@@ -54,6 +54,8 @@ def test_backdrop_cutout():
     assert np.isfinite(b.average_frame).all()
     assert b.average_frame.shape == (128, 128)
 
+    BackDrop.from_files([fname, fname], batch_size=2, cutout_size=128)
+
 
 def test_backdrop():
     fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"

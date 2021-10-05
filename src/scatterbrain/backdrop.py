@@ -1,13 +1,14 @@
+import fitsio
 from tqdm import tqdm
 
-from .cupy_numpy_imports import np, xp
+from .cupy_numpy_imports import load_image, np, xp
 from .designmatrix import (
     cartesian_design_matrix,
     radial_design_matrix,
     spline_design_matrix,
     strap_design_matrix,
 )
-from .utils import get_sat_mask, get_star_mask
+from .utils import _package_jitter, get_sat_mask, get_star_mask
 
 
 class BackDrop(object):
@@ -18,7 +19,16 @@ class BackDrop(object):
     """
 
     def __init__(
-        self, column=None, row=None, ccd=3, sigma_f=None, nknots=40, cutout_size=2048
+        self,
+        column=None,
+        row=None,
+        ccd=3,
+        sigma_f=None,
+        nknots=40,
+        cutout_size=2048,
+        tstart=None,
+        tstop=None,
+        quality=None,
     ):
         """Initialize a `BackDrop` object either for fitting or loading a model.
 
@@ -87,6 +97,9 @@ class BackDrop(object):
         self.jitter = []
         self._average_frame = xp.zeros(self.shape)
         self._average_frame_count = 0
+        self.tstart = tstart
+        self.tstop = tstop
+        self.quality = quality
 
     def update_sigma_f(self, sigma_f):
         self.A1.update_sigma_f(sigma_f)
@@ -221,11 +234,17 @@ class BackDrop(object):
             )
         weights_full = self._fit_full_batch(flux_cube)
 
+        jitter = []
+        for tdx in range(len(weights_full)):
+            flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
+            jitter.append(flux_cube[tdx][self.jitter_mask])
+            flux_cube[tdx] += self.A2.dot(weights_full[tdx]).reshape(self.shape)
+
         for tdx in range(len(weights_basic)):
             flux_cube[tdx] += xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        return weights_basic, weights_full
+        return weights_basic, weights_full, jitter
 
     def fit_model_batched(self, flux_cube, batch_size=50, test_frame=0):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
@@ -261,16 +280,18 @@ class BackDrop(object):
             raise ValueError("Pass an `xp.ndarray` or a `list`")
         self._build_masks(flux_cube[test_frame])
         nbatches = xp.ceil(len(flux_cube) / batch_size).astype(int)
-        weights_basic, weights_full = [], []
+        weights_basic, weights_full, jitter = [], [], []
         l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
         if l[-1] > len(flux_cube):
             l[-1] = len(flux_cube)
         for l1, l2 in zip(l[:-1], l[1:]):
-            w1, w2 = self._fit_batch(flux_cube[l1:l2])
+            w1, w2, j = self._fit_batch(flux_cube[l1:l2])
             weights_basic.append(w1)
             weights_full.append(w2)
+            jitter.append(j)
         self.weights_basic = list(xp.vstack(weights_basic))
         self.weights_full = list(xp.vstack(weights_full))
+        self.jitter = list(xp.vstack(j))
         return
 
     @property
@@ -299,4 +320,96 @@ class BackDrop(object):
                 ]
             )
         self.weights_full = list(self.weights_full)
+        return self
+
+    @staticmethod
+    def from_files(fnames, batch_size=50, test_frame=None, cutout_size=2048):
+        """Creates a backdrop model from filenames
+
+        Parameters
+        ----------
+        fnames : list
+            List of filenames to compute the background model for
+        batch_size : int
+            Number of files to process in a given batch
+        test_frame : None or int
+            The frame to use as a "test" frame for building masks.
+            If None, a reasonable frame will be chosen.
+
+        Returns
+        -------
+        b : `scatterbrain.backdrop.BackDrop`
+            BackDrop object
+        """
+
+        if not isinstance(fnames, (list, xp.ndarray)):
+            raise ValueError("Pass an array of file names")
+        if not isinstance(fnames[0], (str)):
+            raise ValueError("Pass an array of strings")
+
+        # make a backdrop object
+        self = BackDrop(
+            ccd=fitsio.read(fnames[0], ext=1, header=True)[1]["CCD"],
+            cutout_size=cutout_size,
+        )
+        self.tstart = np.asarray(
+            [fitsio.read_header(fname, ext=0)["TSTART"] for fname in fnames]
+        )
+        s = np.argsort(self.tstart)
+        self.tstart, fnames = self.tstart[s], np.asarray(fnames)[s]
+        self.tstop = np.asarray(
+            [fitsio.read_header(fname, ext=0)["TSTOP"] for fname in fnames]
+        )
+        self.quality = np.asarray(
+            [fitsio.read_header(fname, ext=1)["DQUALITY"] for fname in fnames]
+        )
+        # Step 1: find a good test frame
+        if test_frame is None:
+            # Test frame is a low flux frame, close to the middle of the dataset.
+            f = np.asarray(
+                [
+                    fitsio.read(fname)[
+                        np.min([self.A1.bore_pixel[0], 2047]),
+                        45 + np.min([self.A1.bore_pixel[1], 0]),
+                    ]
+                    for fname in tqdm(
+                        fnames, desc="Finding test frame", leave=True, position=0
+                    )
+                ]
+            )
+
+            l = np.where((f < np.nanpercentile(f, 5)) & (self.quality == 0))[0]
+            if len(l) == 0:
+                test_frame = len(fnames) // 2
+            else:
+                test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
+
+        self._build_masks(load_image(fnames[test_frame], cutout_size=cutout_size))
+
+        # Step 2: run as a batch...
+        nbatches = xp.ceil(len(fnames) / batch_size).astype(int)
+        weights_basic, weights_full, jitter = [], [], []
+        l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
+        if l[-1] > len(fnames):
+            l[-1] = len(fnames)
+        for l1, l2 in tqdm(
+            zip(l[:-1], l[1:]),
+            desc=f"Fitting frames in batches of {batch_size}",
+            total=len(l) - 1,
+            leave=True,
+            position=0,
+        ):
+            flux_cube = [
+                load_image(fnames[idx], cutout_size=cutout_size)
+                for idx in np.arange(l1, l2)
+            ]
+            w1, w2, j = self._fit_batch(flux_cube)
+            weights_basic.append(w1)
+            weights_full.append(w2)
+            jitter.append(j)
+
+        self.weights_basic = list(xp.vstack(weights_basic))
+        self.weights_full = list(xp.vstack(weights_full))
+        self.jitter = list(xp.vstack(jitter))
+        _package_jitter(self)
         return self
