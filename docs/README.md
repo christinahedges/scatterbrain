@@ -5,5 +5,6 @@
 
 # TODO
 
+* add asteroid masking
 * add radial spline dm
 * add cholesky batch solve

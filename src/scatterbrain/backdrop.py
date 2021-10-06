@@ -31,7 +31,7 @@ class BackDrop(object):
         column=None,
         row=None,
         sigma_f=None,
-        nknots=60,
+        nknots=40,
         cutout_size=2048,
         tstart=None,
         tstop=None,
@@ -86,7 +86,7 @@ class BackDrop(object):
             row=row,
             ccd=ccd,
             sigma_f=sigma_f,
-            prior_sigma=100,
+            prior_sigma=200,
             nknots=nknots,
             cutout_size=cutout_size,
         ) + strap_design_matrix(
@@ -94,7 +94,7 @@ class BackDrop(object):
             row=row,
             ccd=ccd,
             sigma_f=sigma_f,
-            prior_sigma=100,
+            prior_sigma=30,
             cutout_size=cutout_size,
         )
         self.cutout_size = cutout_size
@@ -256,6 +256,8 @@ class BackDrop(object):
         for tdx in range(len(weights_full)):
             flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
             jitter.append(flux_cube[tdx][self.jitter_mask])
+            self._average_frame += flux_cube[tdx]
+            self._average_frame_count += 1
             flux_cube[tdx] += self.A2.dot(weights_full[tdx]).reshape(self.shape)
 
         for tdx in range(len(weights_basic)):
@@ -404,11 +406,11 @@ class BackDrop(object):
                 "cutout_size",
             ]:
                 setattr(self, key, hdu[0].header[key])
-            if "TSTART" in hdu[1].data.names:
+            if "tstart" in hdu[1].data.names:
                 self.tstart = hdu[1].data["tstart"]
-            if "TSTOP" in hdu[1].data.names:
+            if "tstop" in hdu[1].data.names:
                 self.tstop = hdu[1].data["tstop"]
-            if "QUALITY" in hdu[1].data.names:
+            if "quality" in hdu[1].data.names:
                 self.quality = hdu[1].data["QUALITY"]
             self.weights_basic = list(hdu[2].data)
             weights_full = hdu[3].data
@@ -438,7 +440,13 @@ class BackDrop(object):
 
     @staticmethod
     def from_tess_images(
-        fnames, batch_size=50, test_frame=None, cutout_size=2048, sector=None
+        fnames,
+        batch_size=50,
+        test_frame=None,
+        cutout_size=2048,
+        sector=None,
+        camera=None,
+        ccd=None,
     ):
         """Creates a backdrop model from filenames
 
@@ -468,6 +476,16 @@ class BackDrop(object):
                 sector = int(fnames[0].split("-s")[1].split("-")[0])
             except ValueError:
                 raise ValueError("Can not parse file name for sector number")
+        if camera is None:
+            try:
+                ccd = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
+            except ValueError:
+                raise ValueError("Can not find a camera number")
+        if ccd is None:
+            try:
+                ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
+            except ValueError:
+                raise ValueError("Can not find a CCD number")
 
         blown_out_strips = np.asarray(
             [
@@ -480,8 +498,8 @@ class BackDrop(object):
         # make a backdrop object
         self = BackDrop(
             sector=sector,
-            camera=fitsio.read_header(fnames[0], ext=1)["CAMERA"],
-            ccd=fitsio.read_header(fnames[0], ext=1)["CCD"],
+            camera=camera,
+            ccd=ccd,
             cutout_size=cutout_size,
         )
         self.tstart = np.asarray(
