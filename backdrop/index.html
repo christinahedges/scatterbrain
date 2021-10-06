@@ -318,6 +318,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#scatterbrain.backdrop.BackDrop.from_tess_images" class="md-nav__link">
+    from_tess_images()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#scatterbrain.backdrop.BackDrop.load" class="md-nav__link">
     load()
   </a>
@@ -435,6 +442,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#scatterbrain.backdrop.BackDrop.from_tess_images" class="md-nav__link">
+    from_tess_images()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#scatterbrain.backdrop.BackDrop.load" class="md-nav__link">
     load()
   </a>
@@ -518,7 +532,7 @@ want to tweak the model, check out the <code>design_matrix</code> API.</p>
 
 
 <h3 id="scatterbrain.backdrop.BackDrop.__init__" class="doc doc-heading">
-<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nknots</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">)</span></code>
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sector</span><span class="p">,</span> <span class="n">camera</span><span class="p">,</span> <span class="n">ccd</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nknots</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span> <span class="n">tstart</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tstop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quality</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-properties">
       <small class="doc doc-property doc-property-special"><code>special</code></small>
@@ -542,6 +556,24 @@ want to tweak the model, check out the <code>design_matrix</code> API.</p>
   </thead>
   <tbody>
       <tr>
+        <td><code>sector</code></td>
+        <td><code>int</code></td>
+        <td><p>Sector number</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>camera</code></td>
+        <td><code>int</code></td>
+        <td><p>Camera number</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>CCD number</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
         <td><code>column</code></td>
         <td><code>None or xp.ndarray</code></td>
         <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
@@ -552,12 +584,6 @@ want to tweak the model, check out the <code>design_matrix</code> API.</p>
         <td><code>None or xp.ndarray</code></td>
         <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
         <td><code>None</code></td>
-      </tr>
-      <tr>
-        <td><code>ccd</code></td>
-        <td><code>int</code></td>
-        <td><p>CCD number</p></td>
-        <td><code>3</code></td>
       </tr>
       <tr>
         <td><code>sigma_f</code></td>
@@ -749,20 +775,118 @@ It should be the lowest background frame.</p></td>
 
 
 
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.backdrop.BackDrop.from_tess_images" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">from_tess_images</span><span class="p">(</span><span class="n">fnames</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">test_frame</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">camera</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-staticmethod"><code>staticmethod</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Creates a backdrop model from filenames</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>fnames</code></td>
+        <td><code>list</code></td>
+        <td><p>List of filenames to compute the background model for</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>batch_size</code></td>
+        <td><code>int</code></td>
+        <td><p>Number of files to process in a given batch</p></td>
+        <td><code>50</code></td>
+      </tr>
+      <tr>
+        <td><code>test_frame</code></td>
+        <td><code>None or int</code></td>
+        <td><p>The frame to use as a "test" frame for building masks.
+If None, a reasonable frame will be chosen.</p></td>
+        <td><code>None</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>`scatterbrain.backdrop.BackDrop`</code></td>
+      <td><p>BackDrop object</p></td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
   <div class="doc doc-object doc-method">
 
 
 
 <h3 id="scatterbrain.backdrop.BackDrop.load" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">infile</span><span class="o">=</span><span class="s1">&#39;backdrop_weights.npz&#39;</span><span class="p">)</span></code>
+<code class="highlight language-python"><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 
 </h3>
 
     <div class="doc doc-contents ">
 
-      <p>Load a file for a set of input parameters.</p>
+      <p>Load a model fit to the tess-backrop data directory.</p>
 
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>input</code></td>
+        <td><code>tuple or string</code></td>
+        <td><p>Either pass a tuple with <code>(sector, camera, ccd)</code> or pass
+a file name in <code>dir</code> to load</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>dir</code></td>
+        <td><code>str</code></td>
+        <td><p>Optional tring with the directory name</p></td>
+        <td><code>None</code></td>
+      </tr>
+  </tbody>
+</table>
     </div>
 
   </div>
@@ -794,14 +918,14 @@ It should be the lowest background frame.</p></td>
 
 
 <h3 id="scatterbrain.backdrop.BackDrop.save" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outfile</span><span class="o">=</span><span class="s1">&#39;backdrop_weights.npz&#39;</span><span class="p">)</span></code>
+<code class="highlight language-python"><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 
 </h3>
 
     <div class="doc doc-contents ">
 
-      <p>Save the best fit weights to a file</p>
+      <p>Save a model fit to the scatterbrain data directory.</p>
 
     </div>
 
