@@ -36,6 +36,7 @@ class BackDrop(object):
         tstart=None,
         tstop=None,
         quality=None,
+        verbose=False,
     ):
         """Initialize a `BackDrop` object either for fitting or loading a model.
 
@@ -63,7 +64,7 @@ class BackDrop(object):
         self.sector = sector
         self.camera = camera
         self.ccd = ccd
-
+        self.verbose = verbose
         self.A1 = radial_design_matrix(
             column=column,
             row=row,
@@ -197,7 +198,7 @@ class BackDrop(object):
 
     @property
     def average_frame(self):
-        return self._average_frame / self._average_frame_count
+        return (self._average_frame / self._average_frame_count)[self.row, self.column]
 
     def fit_model(self, flux_cube, test_frame=0):
         """Fit a model to a flux cube, fitting each frame individually
@@ -230,7 +231,13 @@ class BackDrop(object):
         else:
             raise ValueError("Pass an `xp.ndarray` or a `list`")
         self._build_masks(flux_cube[test_frame])
-        for flux in tqdm(flux_cube, desc="Fitting Frames"):
+        for flux in tqdm(
+            flux_cube,
+            desc="Fitting Frames",
+            leave=True,
+            position=0,
+            disable=~self.verbose,
+        ):
             self.fit_frame(flux)
 
     def _fit_basic_batch(self, flux):
@@ -447,6 +454,7 @@ class BackDrop(object):
         sector=None,
         camera=None,
         ccd=None,
+        verbose=False,
     ):
         """Creates a backdrop model from filenames
 
@@ -465,7 +473,6 @@ class BackDrop(object):
         b : `scatterbrain.backdrop.BackDrop`
             BackDrop object
         """
-
         if not isinstance(fnames, (list, xp.ndarray)):
             raise ValueError("Pass an array of file names")
         if not isinstance(fnames[0], (str)):
@@ -478,7 +485,7 @@ class BackDrop(object):
                 raise ValueError("Can not parse file name for sector number")
         if camera is None:
             try:
-                ccd = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
+                camera = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
             except ValueError:
                 raise ValueError("Can not find a camera number")
         if ccd is None:
@@ -491,7 +498,11 @@ class BackDrop(object):
             [
                 test_strip(fname)
                 for fname in tqdm(
-                    fnames, desc="Finding blown out strips", position=0, leave=True
+                    fnames,
+                    desc="Finding blown out strips",
+                    position=0,
+                    leave=True,
+                    disable=~verbose,
                 )
             ]
         )
@@ -524,7 +535,11 @@ class BackDrop(object):
                         45 + np.min([self.A1.bore_pixel[1], 0]),
                     ]
                     for fname in tqdm(
-                        fnames, desc="Finding test frame", leave=True, position=0
+                        fnames,
+                        desc="Finding test frame",
+                        leave=True,
+                        position=0,
+                        disable=~verbose,
                     )
                 ]
             )
@@ -550,6 +565,7 @@ class BackDrop(object):
                 total=len(l) - 1,
                 leave=True,
                 position=0,
+                disable=~verbose,
             ):
                 flux_cube = [
                     load_image(fnames[idx], cutout_size=cutout_size)
