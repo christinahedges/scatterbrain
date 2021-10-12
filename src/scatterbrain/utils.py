@@ -1,10 +1,25 @@
 """basic utility functions"""
 import fitsio
 import numpy as np
+from astropy.convolution import Gaussian2DKernel, convolve
 from fbpca import pca
 from scipy.signal import medfilt
 
 from .cupy_numpy_imports import xp
+
+
+def _asteroid_mask(flux_cube):
+    batch_size = len(flux_cube)
+    # dcube = np.zeros((batch_size - 1, 2048, 2048))
+    dflat = np.zeros(flux_cube[0].shape)
+    for idx in range(batch_size - 1):
+        dflat += np.hypot(*np.gradient(flux_cube[idx] - flux_cube[idx + 1]))
+    dflat /= batch_size - 1
+    conv = convolve(
+        np.hypot(*np.gradient(dflat)), Gaussian2DKernel(1.5), boundary="extend"
+    )
+    ast_mask = conv > np.percentile(conv, 90)
+    return ast_mask
 
 
 def _spline_basis_vector(x, degree, i, knots):

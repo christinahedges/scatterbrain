@@ -387,6 +387,71 @@ class radial_design_matrix(TESS_design_matrix):
         )
 
 
+class radial_spline_design_matrix(TESS_design_matrix):
+    """Design matrix for creating a polynomial in radial dimension from boresight pixel"""
+
+    def _build(self):
+        self.rad = (xp.hypot(self.column, self.row).ravel() / xp.sqrt(2)).ravel()
+        knots = (
+            xp.linspace(0, 1, self.nknots) ** 0.25 + 1e-10
+        )  # This stops numerical instabilities where x==knot value
+        knots_wbounds = xp.append(xp.append([0] * (2 - 1), knots), [1] * (2 + 2))
+        return sparse.vstack(
+            [
+                sparse.csr_matrix(_spline_basis_vector(self.rad, 2, i, knots_wbounds))
+                for i in xp.arange(-1, len(knots_wbounds) - 2 - 3)
+            ]
+        ).T
+
+    def __init__(
+        self,
+        sigma_f=None,
+        prior_sigma=None,
+        prior_mu=None,
+        ccd=3,
+        nknots=60,
+        column=None,
+        row=None,
+        cutout_size=2048,
+    ):
+        """
+        Create a `radial_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+                CCD number
+        nknots : int
+                Number of knots
+        column : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+                Name for design matrix
+        cutout_size : int
+                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        """
+        self.nknots = nknots
+        super().__init__(
+            name="radial",
+            sigma_f=sigma_f,
+            prior_sigma=prior_sigma,
+            prior_mu=prior_mu,
+            ccd=ccd,
+            column=column,
+            row=row,
+            cutout_size=cutout_size,
+        )
+
+
 class strap_design_matrix(TESS_design_matrix):
     """Design matrix for creating column-wise offsets for TESS straps"""
 
@@ -405,7 +470,7 @@ class strap_design_matrix(TESS_design_matrix):
         cutout_size=2048,
     ):
         """
-        Create a `spline_design_matrix` object.
+        Create a `strap_design_matrix` object.
 
         Parameters
         ----------

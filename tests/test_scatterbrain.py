@@ -51,9 +51,13 @@ def test_backdrop_cutout():
     model = b.model(0)
     assert model.shape == (128, 128)
     assert np.isfinite(b.average_frame).all()
+    assert b.star_mask.shape == (128, 128)
+    assert b.sat_mask.shape == (128, 128)
     assert b.average_frame.shape == (128, 128)
 
-    BackDrop.from_tess_images([fname, fname], sector=1, batch_size=2, cutout_size=128)
+    BackDrop.from_tess_images(
+        [fname, fname], sector=1, batch_size=2, cutout_size=128, quality_mask=0
+    )
 
 
 def test_backdrop_save():
