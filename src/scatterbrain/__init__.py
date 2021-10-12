@@ -6,4 +6,5 @@ import os
 
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 from .backdrop import BackDrop  # noqa
+from .cupy_numpy_imports import load_image  # noqa
 from .version import __version__  # noqa

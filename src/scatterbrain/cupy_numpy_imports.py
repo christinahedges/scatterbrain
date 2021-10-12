@@ -4,7 +4,6 @@ import os
 import fitsio
 import numpy as np
 
-
 try:
     if os.getenv("USE_CUPY") in ["True", "T", "true"]:
         import cupy as xp

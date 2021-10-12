@@ -6,13 +6,18 @@ from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, np, xp
-from .designmatrix import (
-    cartesian_design_matrix,
-    radial_design_matrix,
+from .designmatrix import (  # cartesian_design_matrix,
+    radial_spline_design_matrix,
     spline_design_matrix,
     strap_design_matrix,
 )
-from .utils import _package_jitter, get_sat_mask, get_star_mask, test_strip
+from .utils import (
+    _asteroid_mask,
+    _package_jitter,
+    get_sat_mask,
+    get_star_mask,
+    test_strip,
+)
 from .version import __version__
 
 
@@ -31,7 +36,7 @@ class BackDrop(object):
         column=None,
         row=None,
         sigma_f=None,
-        nknots=40,
+        nknots=50,
         cutout_size=2048,
         tstart=None,
         tstop=None,
@@ -65,23 +70,34 @@ class BackDrop(object):
         self.camera = camera
         self.ccd = ccd
         self.verbose = verbose
-        self.A1 = radial_design_matrix(
+        self.A1 = radial_spline_design_matrix(
             column=column,
             row=row,
             ccd=ccd,
             sigma_f=sigma_f,
             prior_mu=2,
-            prior_sigma=3,
+            prior_sigma=10,
             cutout_size=cutout_size,
-        ) + cartesian_design_matrix(
+        ) + spline_design_matrix(
             column=column,
             row=row,
             ccd=ccd,
             sigma_f=sigma_f,
             prior_mu=2,
-            prior_sigma=3,
+            prior_sigma=10,
             cutout_size=cutout_size,
+            nknots=10,
         )
+        #  + cartesian_design_matrix(
+        #     column=column,
+        #     row=row,
+        #     ccd=ccd,
+        #     sigma_f=sigma_f,
+        #     prior_mu=2,
+        #     prior_sigma=3,
+        #     cutout_size=cutout_size,
+        # )
+
         self.A2 = spline_design_matrix(
             column=column,
             row=row,
@@ -155,6 +171,14 @@ class BackDrop(object):
         self.update_sigma_f(sigma_f)
         return
 
+    def _build_asteroid_mask(self, flux_cube):
+        ast_mask = _asteroid_mask(flux_cube)
+        sigma_f = xp.ones(flux_cube[0].shape)
+        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
+        sigma_f[ast_mask] = 1e5
+        self.update_sigma_f(sigma_f)
+        return
+
     def _fit_basic(self, flux):
         """Fit the first design matrix"""
         self.weights_basic.append(self.A1.fit_frame(xp.log10(flux)))
@@ -198,7 +222,9 @@ class BackDrop(object):
 
     @property
     def average_frame(self):
-        return (self._average_frame / self._average_frame_count)[self.row, self.column]
+        return (self._average_frame / self._average_frame_count)[self.row, :][
+            :, self.column
+        ]
 
     def fit_model(self, flux_cube, test_frame=0):
         """Fit a model to a flux cube, fitting each frame individually
@@ -257,6 +283,7 @@ class BackDrop(object):
             flux_cube[tdx] -= xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
+        self._build_asteroid_mask(flux_cube)
         weights_full = self._fit_full_batch(flux_cube)
 
         jitter = []
@@ -455,6 +482,7 @@ class BackDrop(object):
         camera=None,
         ccd=None,
         verbose=False,
+        quality_mask=32,
     ):
         """Creates a backdrop model from filenames
 
@@ -578,15 +606,16 @@ class BackDrop(object):
 
             return xp.vstack(weights_basic), xp.vstack(weights_full), xp.vstack(jitter)
 
-        w1, w2, j = run_batch(fnames[(self.quality & 8192) == 0])
+        ok = (self.quality & (8192 | quality_mask)) == 0
+        w1, w2, j = run_batch(fnames[ok])
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
-        self.weights_basic[(self.quality & 8192) == 0] = w1
-        self.weights_basic[(self.quality & 8192) != 0] = np.nan
+        self.weights_basic[ok] = w1
+        self.weights_basic[~ok] = np.nan
         self.weights_full = np.zeros((len(fnames), w2.shape[1]))
-        self.weights_full[(self.quality & 8192) == 0] = w2
-        self.weights_full[(self.quality & 8192) != 0] = np.nan
+        self.weights_full[ok] = w2
+        self.weights_full[~ok] = np.nan
         self.jitter = np.zeros((len(fnames), j.shape[1]))
-        self.jitter[(self.quality & 8192) == 0] = j
-        self.jitter[(self.quality & 8192) != 0] = np.nan
+        self.jitter[ok] = j
+        self.jitter[~ok] = np.nan
         _package_jitter(self)
         return self
