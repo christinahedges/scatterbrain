@@ -170,11 +170,20 @@ class BackDrop(object):
             else:
                 self.jitter_mask = (~self.star_mask & self.sat_mask).copy()
         sigma_f = xp.ones(frame.shape)
-        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
+        sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         self.update_sigma_f(sigma_f)
         return
 
     def _build_asteroid_mask(self, flux_cube):
+        """Creates a mask for asteroids, and increases the flux errors in those
+        pixels to reduce their contribution to the model
+
+        Parameters
+        ----------
+        flux_cube: xp.ndarray or list of xp.ndarray
+            3D flux cube of data. Be aware that this should be a short "batch"
+            of flux data (e.g. 50 frames).
+        """
         ast_mask = _asteroid_mask(flux_cube)
         sigma_f = xp.ones(flux_cube[0].shape)
         # More than the saturation limit
@@ -270,6 +279,7 @@ class BackDrop(object):
             position=0,
         ):
             self.fit_frame(flux)
+        _package_jitter(self)
 
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
@@ -281,14 +291,15 @@ class BackDrop(object):
         #        weights = list(self.A2.fit_batch(flux))
         return self.A2.fit_batch(flux)
 
-    def _fit_batch(self, flux_cube, mask_asteroids=False):
+    def _fit_batch(self, flux_cube, mask_asteroids=True):
         """Fit the both design matrices, in a batched mode"""
         weights_basic = self._fit_basic_batch(flux_cube)
         for tdx in range(len(weights_basic)):
             flux_cube[tdx] -= xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        ast_mask = self._build_asteroid_mask(flux_cube)
+        if mask_asteroids:
+            ast_mask = self._build_asteroid_mask(flux_cube)
         weights_full = self._fit_full_batch(flux_cube)
 
         jitter = []
@@ -306,7 +317,7 @@ class BackDrop(object):
         return weights_basic, weights_full, jitter, ast_mask
 
     def fit_model_batched(
-        self, flux_cube, batch_size=50, test_frame=0, mask_asteroids=False
+        self, flux_cube, batch_size=50, test_frame=0, mask_asteroids=True
     ):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
 
