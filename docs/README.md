@@ -5,7 +5,6 @@
 
 # TODO
 
-* add asteroid masking
+* add polynomial straps
 * add polynomial straps
 * add radial spline dm
-* add cholesky batch solve

@@ -1,23 +1,71 @@
 """basic utility functions"""
+import functools
+
 import fitsio
 import numpy as np
-from astropy.convolution import Gaussian2DKernel, convolve
+from astropy.convolution import Box2DKernel, convolve
+from astropy.stats import sigma_clip
 from fbpca import pca
 from scipy.signal import medfilt
 
 from .cupy_numpy_imports import xp
 
 
-def _asteroid_mask(flux_cube):
+@functools.lru_cache()
+def _make_X(cutout_size=2048, npoly=3):
+    idx = (np.arange(0, cutout_size, 512) / 512).astype(int)
+    X1 = np.vstack([d * np.ones((512, len(idx))) for d in np.diag(np.ones(len(idx)))]).T
+    X1 = np.vstack(
+        [
+            (x * np.ones((len(idx) * 512, len(idx) * 512)))[
+                :cutout_size, :cutout_size
+            ].ravel()
+            for x in X1
+        ]
+    ).T
+    grid = np.mgrid[:cutout_size, :cutout_size]
+    X2 = (X1 * grid[0].ravel()[:, None] - 1024) / 2048
+    X3 = (X1 * grid[1].ravel()[:, None] - 1024) / 2048
+    return np.hstack(
+        [
+            X1,
+            np.hstack(
+                [
+                    X2 ** idx * X3 ** jdx
+                    for idx in np.arange(1, npoly + 1)
+                    for jdx in np.arange(1, npoly + 1)
+                ]
+            ),
+        ]
+    )
+
+
+def _asteroid_mask(flux_cube, mask=True):
     batch_size = len(flux_cube)
     # dcube = np.zeros((batch_size - 1, 2048, 2048))
+    err = np.mean(flux_cube - np.min(flux_cube), axis=0) ** 0.5
     dflat = np.zeros(flux_cube[0].shape)
     for idx in range(batch_size - 1):
         dflat += np.hypot(*np.gradient(flux_cube[idx] - flux_cube[idx + 1]))
     dflat /= batch_size - 1
-    conv = convolve(
-        np.hypot(*np.gradient(dflat)), Gaussian2DKernel(1.5), boundary="extend"
-    )
+    dflat -= np.median(dflat)
+    dflat[0] *= 0
+    dflat[-1] *= 0
+    dflat[:, 0] *= 0
+    dflat[:, -1] *= 0
+    dflat /= err
+    conv = convolve(dflat, Box2DKernel(1.5), boundary="extend")
+    X = _make_X(flux_cube[0].shape[0])
+    k = conv.ravel() < np.percentile(conv, 99)
+    for count in range(2):
+        w = np.linalg.solve(
+            X[k].T.dot(X[k]) + np.diag(1 / (np.ones(X.shape[1]) + 1000000) ** 2),
+            X[k].T.dot(conv.ravel()[k]),
+        )
+        k = ~sigma_clip(conv.ravel() - X.dot(w), sigma=5).mask
+    conv -= X.dot(w).reshape(flux_cube[0].shape)
+    if not mask:
+        return conv
     ast_mask = conv > np.percentile(conv, 90)
     return ast_mask
 
@@ -158,10 +206,12 @@ def _package_jitter(backdrop, xpca_components=20):
     # If there aren't enough jitter components, just return them.
     if backdrop.jitter.shape[0] < 40:
         # Not enough times
-        return None
+        backdrop.jitter_pack = backdrop.jitter
+        return
     if finite.sum() < 50:
         # Not enough pixels
-        return backdrop.jitter.copy()
+        backdrop.jitter_pack = backdrop.jitter
+        return
 
     # We split at data downlinks where there is a gap of at least 0.2 days
     breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
@@ -194,7 +244,7 @@ def _package_jitter(backdrop, xpca_components=20):
     X = xp.hstack([X[:, idx::xpca_components] for idx in range(xpca_components)])
     Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
     Xall[finite] = X
-    backdrop.jitter = Xall
+    backdrop.jitter_pack = Xall
 
 
 def test_strip(fname):

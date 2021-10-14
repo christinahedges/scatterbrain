@@ -6,7 +6,8 @@ from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, np, xp
-from .designmatrix import (  # cartesian_design_matrix,
+from .designmatrix import (
+    cartesian_design_matrix,
     radial_spline_design_matrix,
     spline_design_matrix,
     strap_design_matrix,
@@ -76,43 +77,45 @@ class BackDrop(object):
             ccd=ccd,
             sigma_f=sigma_f,
             prior_mu=2,
-            prior_sigma=10,
+            prior_sigma=100,
             cutout_size=cutout_size,
-        ) + spline_design_matrix(
+        ) + cartesian_design_matrix(
             column=column,
             row=row,
             ccd=ccd,
             sigma_f=sigma_f,
             prior_mu=2,
-            prior_sigma=10,
+            prior_sigma=100,
             cutout_size=cutout_size,
-            nknots=10,
+            npoly=2,
         )
-        #  + cartesian_design_matrix(
-        #     column=column,
-        #     row=row,
-        #     ccd=ccd,
-        #     sigma_f=sigma_f,
-        #     prior_mu=2,
-        #     prior_sigma=3,
-        #     cutout_size=cutout_size,
-        # )
 
-        self.A2 = spline_design_matrix(
-            column=column,
-            row=row,
-            ccd=ccd,
-            sigma_f=sigma_f,
-            prior_sigma=200,
-            nknots=nknots,
-            cutout_size=cutout_size,
-        ) + strap_design_matrix(
-            column=column,
-            row=row,
-            ccd=ccd,
-            sigma_f=sigma_f,
-            prior_sigma=30,
-            cutout_size=cutout_size,
+        self.A2 = (
+            spline_design_matrix(
+                column=column,
+                row=row,
+                ccd=ccd,
+                sigma_f=sigma_f,
+                prior_sigma=200,
+                nknots=nknots,
+                cutout_size=cutout_size,
+            )
+            + radial_spline_design_matrix(
+                column=column,
+                row=row,
+                ccd=ccd,
+                sigma_f=sigma_f,
+                prior_sigma=300,
+                cutout_size=cutout_size,
+            )
+            + strap_design_matrix(
+                column=column,
+                row=row,
+                ccd=ccd,
+                sigma_f=sigma_f,
+                prior_sigma=30,
+                cutout_size=cutout_size,
+            )
         )
         self.cutout_size = cutout_size
         if row is None:
@@ -167,17 +170,29 @@ class BackDrop(object):
             else:
                 self.jitter_mask = (~self.star_mask & self.sat_mask).copy()
         sigma_f = xp.ones(frame.shape)
-        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
+        sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         self.update_sigma_f(sigma_f)
         return
 
     def _build_asteroid_mask(self, flux_cube):
+        """Creates a mask for asteroids, and increases the flux errors in those
+        pixels to reduce their contribution to the model
+
+        Parameters
+        ----------
+        flux_cube: xp.ndarray or list of xp.ndarray
+            3D flux cube of data. Be aware that this should be a short "batch"
+            of flux data (e.g. 50 frames).
+        """
         ast_mask = _asteroid_mask(flux_cube)
         sigma_f = xp.ones(flux_cube[0].shape)
-        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
-        sigma_f[ast_mask] = 1e5
+        # More than the saturation limit
+        sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
+        # Here we downweight asteroids and other variable pixels
+        # asteroids are probably not much brighter than 100s of counts
+        sigma_f[ast_mask] += 500
         self.update_sigma_f(sigma_f)
-        return
+        return ast_mask
 
     def _fit_basic(self, flux):
         """Fit the first design matrix"""
@@ -226,7 +241,7 @@ class BackDrop(object):
             :, self.column
         ]
 
-    def fit_model(self, flux_cube, test_frame=0):
+    def fit_model(self, flux_cube, test_frame=0, verbose=False):
         """Fit a model to a flux cube, fitting each frame individually
 
         This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
@@ -262,9 +277,9 @@ class BackDrop(object):
             desc="Fitting Frames",
             leave=True,
             position=0,
-            disable=~self.verbose,
         ):
             self.fit_frame(flux)
+        _package_jitter(self)
 
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
@@ -276,14 +291,15 @@ class BackDrop(object):
         #        weights = list(self.A2.fit_batch(flux))
         return self.A2.fit_batch(flux)
 
-    def _fit_batch(self, flux_cube):
+    def _fit_batch(self, flux_cube, mask_asteroids=True):
         """Fit the both design matrices, in a batched mode"""
         weights_basic = self._fit_basic_batch(flux_cube)
         for tdx in range(len(weights_basic)):
             flux_cube[tdx] -= xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        self._build_asteroid_mask(flux_cube)
+        if mask_asteroids:
+            ast_mask = self._build_asteroid_mask(flux_cube)
         weights_full = self._fit_full_batch(flux_cube)
 
         jitter = []
@@ -298,9 +314,11 @@ class BackDrop(object):
             flux_cube[tdx] += xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        return weights_basic, weights_full, jitter
+        return weights_basic, weights_full, jitter, ast_mask
 
-    def fit_model_batched(self, flux_cube, batch_size=50, test_frame=0):
+    def fit_model_batched(
+        self, flux_cube, batch_size=50, test_frame=0, mask_asteroids=True
+    ):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
 
         This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
@@ -339,13 +357,16 @@ class BackDrop(object):
         if l[-1] > len(flux_cube):
             l[-1] = len(flux_cube)
         for l1, l2 in zip(l[:-1], l[1:]):
-            w1, w2, j = self._fit_batch(flux_cube[l1:l2])
+            w1, w2, j, ast_mask = self._fit_batch(
+                flux_cube[l1:l2], mask_asteroids=mask_asteroids
+            )
             weights_basic.append(w1)
             weights_full.append(w2)
             jitter.append(j)
         self.weights_basic = list(xp.vstack(weights_basic))
         self.weights_full = list(xp.vstack(weights_full))
         self.jitter = list(xp.vstack(j))
+        _package_jitter(self)
         return
 
     @property
@@ -372,7 +393,7 @@ class BackDrop(object):
         hdu1 = fits.BinTableHDU.from_columns(cols, name="TIME")
         hdu2 = fits.ImageHDU(np.asarray(self.weights_basic)[s], name="WEIGHTS1")
         hdu3 = fits.ImageHDU(np.asarray(self.weights_full)[s], name="WEIGHTS2")
-        hdu4 = fits.ImageHDU(np.asarray(self.jitter)[s], name="JITTER")
+        hdu4 = fits.ImageHDU(np.asarray(self.jitter_pack)[s], name="JITTER")
         hdu5 = fits.ImageHDU(np.asarray(self.average_frame), name="AVGFRAME")
         hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4, hdu5])
         return hdul
@@ -451,7 +472,7 @@ class BackDrop(object):
             self.weights_full = np.hstack(
                 [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
             )
-            self.jitter = hdu[4].data
+            self.jitter_pack = hdu[4].data
             self._average_frame = hdu[5].data
             self._average_frame_count = 1
         return self
@@ -530,7 +551,6 @@ class BackDrop(object):
                     desc="Finding blown out strips",
                     position=0,
                     leave=True,
-                    disable=~verbose,
                 )
             ]
         )
@@ -567,7 +587,6 @@ class BackDrop(object):
                         desc="Finding test frame",
                         leave=True,
                         position=0,
-                        disable=~verbose,
                     )
                 ]
             )
@@ -587,27 +606,33 @@ class BackDrop(object):
             l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
             if l[-1] > len(fnames):
                 l[-1] = len(fnames)
+            asteroid_mask = np.zeros((self.cutout_size, self.cutout_size), dtype=int)
             for l1, l2 in tqdm(
                 zip(l[:-1], l[1:]),
                 desc=f"Fitting frames in batches of {batch_size}",
                 total=len(l) - 1,
                 leave=True,
                 position=0,
-                disable=~verbose,
             ):
                 flux_cube = [
                     load_image(fnames[idx], cutout_size=cutout_size)
                     for idx in np.arange(l1, l2)
                 ]
-                w1, w2, j = self._fit_batch(flux_cube)
+                w1, w2, j, ast_mask = self._fit_batch(flux_cube)
                 weights_basic.append(w1)
                 weights_full.append(w2)
                 jitter.append(j)
-
-            return xp.vstack(weights_basic), xp.vstack(weights_full), xp.vstack(jitter)
+                asteroid_mask += ast_mask
+            return (
+                xp.vstack(weights_basic),
+                xp.vstack(weights_full),
+                xp.vstack(jitter),
+                asteroid_mask,
+            )
 
         ok = (self.quality & (8192 | quality_mask)) == 0
-        w1, w2, j = run_batch(fnames[ok])
+        w1, w2, j, self.asteroid_mask = run_batch(fnames[ok])
+
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
         self.weights_basic[ok] = w1
         self.weights_basic[~ok] = np.nan
