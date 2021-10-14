@@ -1,7 +1,11 @@
 """basic utility functions"""
 import fitsio
 import numpy as np
+<<<<<<< HEAD
 from astropy.convolution import Box2DKernel, convolve
+=======
+from astropy.convolution import Gaussian2DKernel, convolve
+>>>>>>> main
 from fbpca import pca
 from scipy.signal import medfilt
 from astropy.stats import sigma_clip
@@ -9,6 +13,7 @@ import functools
 from .cupy_numpy_imports import xp
 
 
+<<<<<<< HEAD
 @functools.lru_cache()
 def _make_X(cutout_size=2048, npoly=3):
     idx = (np.arange(0, cutout_size, 512) / 512).astype(int)
@@ -42,10 +47,16 @@ def _asteroid_mask(flux_cube, mask=True):
     batch_size = len(flux_cube)
     # dcube = np.zeros((batch_size - 1, 2048, 2048))
     err = np.mean(flux_cube - np.min(flux_cube), axis=0) ** 0.5
+=======
+def _asteroid_mask(flux_cube):
+    batch_size = len(flux_cube)
+    # dcube = np.zeros((batch_size - 1, 2048, 2048))
+>>>>>>> main
     dflat = np.zeros(flux_cube[0].shape)
     for idx in range(batch_size - 1):
         dflat += np.hypot(*np.gradient(flux_cube[idx] - flux_cube[idx + 1]))
     dflat /= batch_size - 1
+<<<<<<< HEAD
     dflat -= np.median(dflat)
     dflat[0] *= 0
     dflat[-1] *= 0
@@ -64,6 +75,11 @@ def _asteroid_mask(flux_cube, mask=True):
     conv -= X.dot(w).reshape(flux_cube[0].shape)
     if not mask:
         return conv
+=======
+    conv = convolve(
+        np.hypot(*np.gradient(dflat)), Gaussian2DKernel(1.5), boundary="extend"
+    )
+>>>>>>> main
     ast_mask = conv > np.percentile(conv, 90)
     return ast_mask
 
