@@ -190,7 +190,7 @@ class BackDrop(object):
         sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         # Here we downweight asteroids and other variable pixels
         # asteroids are probably not much brighter than 100s of counts
-        sigma_f[ast_mask] += 500
+        sigma_f[ast_mask] += 200
         self.update_sigma_f(sigma_f)
         return ast_mask
 
