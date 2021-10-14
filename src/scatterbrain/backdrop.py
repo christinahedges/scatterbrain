@@ -79,7 +79,7 @@ class BackDrop(object):
             prior_mu=2,
             prior_sigma=100,
             cutout_size=cutout_size,
-        ) + spline_design_matrix(
+        ) + cartesian_design_matrix(
             column=column,
             row=row,
             ccd=ccd,
@@ -89,15 +89,6 @@ class BackDrop(object):
             cutout_size=cutout_size,
             npoly=2,
         )
-        #  + cartesian_design_matrix(
-        #     column=column,
-        #     row=row,
-        #     ccd=ccd,
-        #     sigma_f=sigma_f,
-        #     prior_mu=2,
-        #     prior_sigma=3,
-        #     cutout_size=cutout_size,
-        # )
 
         self.A2 = (
             spline_design_matrix(
@@ -186,7 +177,6 @@ class BackDrop(object):
     def _build_asteroid_mask(self, flux_cube):
         ast_mask = _asteroid_mask(flux_cube)
         sigma_f = xp.ones(flux_cube[0].shape)
-<<<<<<< HEAD
         # More than the saturation limit
         sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         # Here we downweight asteroids and other variable pixels
@@ -194,12 +184,6 @@ class BackDrop(object):
         sigma_f[ast_mask] += 500
         self.update_sigma_f(sigma_f)
         return ast_mask
-=======
-        sigma_f[~self.star_mask | ~self.sat_mask] = 1e5
-        sigma_f[ast_mask] = 1e5
-        self.update_sigma_f(sigma_f)
-        return
->>>>>>> main
 
     def _fit_basic(self, flux):
         """Fit the first design matrix"""
@@ -637,7 +621,6 @@ class BackDrop(object):
 
         ok = (self.quality & (8192 | quality_mask)) == 0
         w1, w2, j, self.asteroid_mask = run_batch(fnames[ok])
-
 
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
         self.weights_basic[ok] = w1
