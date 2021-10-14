@@ -6,5 +6,4 @@
 # TODO
 
 * add polynomial straps
-* add polynomial straps
-* add radial spline dm
+* add cholesky solve?
