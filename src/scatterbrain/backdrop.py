@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import fitsio
 from astropy.io import fits
@@ -13,8 +14,9 @@ from .designmatrix import (
     strap_design_matrix,
 )
 from .utils import (
+    _align_with_tpf,
     _asteroid_mask,
-    _package_jitter,
+    _package_pca_comps,
     get_sat_mask,
     get_star_mask,
     test_strip,
@@ -43,7 +45,7 @@ class BackDrop(object):
         tstop=None,
         quality=None,
         verbose=False,
-        njitter=10000,
+        njitter=5000,
     ):
         """Initialize a `BackDrop` object either for fitting or loading a model.
 
@@ -131,6 +133,7 @@ class BackDrop(object):
         self.weights_basic = []
         self.weights_full = []
         self.jitter = []
+        self.bkg = []
         self._average_frame = xp.zeros(self.shape)
         self._average_frame_count = 0
         self.tstart = tstart
@@ -148,9 +151,26 @@ class BackDrop(object):
         self._average_frame = xp.zeros(self.shape)
         self._average_frame_count = 0
         self.jitter = []
+        self.bkg = []
 
     def __repr__(self):
         return f"BackDrop CCD:{self.ccd} ({len(self.weights_basic)} frames)"
+
+    def __getitem__(self, key):
+        """Set indexing"""
+        attrs = [
+            item
+            for item in self.__dir__()
+            if not item.startswith("_")
+            and isinstance(getattr(self, item), (xp.ndarray, list))
+            and (xp.asarray(getattr(self, item)).shape[0] == len(self.tstart))
+        ]
+        copy = deepcopy(self)
+        for attr in attrs:
+            setattr(copy, attr, np.asarray(getattr(self, attr))[key])
+            if isinstance(getattr(self, attr), list):
+                setattr(copy, attr, list(getattr(copy, attr)))
+        return copy
 
     def _build_masks(self, frame):
         """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
@@ -173,6 +193,21 @@ class BackDrop(object):
                 self.jitter_mask[l[0], l[1]] = True
             else:
                 self.jitter_mask = (~self.star_mask & self.sat_mask).copy()
+
+        if not hasattr(self, "bkg_mask"):
+            if (self.star_mask & self.sat_mask).sum() > self.njitter:
+                s = np.random.choice(
+                    (self.star_mask & self.sat_mask).sum(),
+                    size=self.njitter,
+                    replace=False,
+                )
+                l = np.asarray(np.where(self.star_mask & self.sat_mask))
+                l = l[:, s]
+                self.bkg_mask = np.zeros((self.cutout_size, self.cutout_size), bool)
+                self.bkg_mask[l[0], l[1]] = True
+            else:
+                self.bkg_mask = (self.star_mask & self.sat_mask).copy()
+
         sigma_f = xp.ones(frame.shape)
         sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         self.update_sigma_f(sigma_f)
@@ -235,6 +270,7 @@ class BackDrop(object):
         self._fit_full(res)
         res = res - self._model_full(-1)
         self.jitter.append(res[self.jitter_mask])
+        self.bkg.append(res[self.bkg_mask])
         self._average_frame += res
         self._average_frame_count += 1
         return
@@ -283,7 +319,7 @@ class BackDrop(object):
             position=0,
         ):
             self.fit_frame(flux)
-        _package_jitter(self)
+        _package_pca_comps(self)
 
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
@@ -306,10 +342,11 @@ class BackDrop(object):
             ast_mask = self._build_asteroid_mask(flux_cube)
         weights_full = self._fit_full_batch(flux_cube)
 
-        jitter = []
+        jitter, bkg = [], []
         for tdx in range(len(weights_full)):
             flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
             jitter.append(flux_cube[tdx][self.jitter_mask])
+            bkg.append(flux_cube[tdx][self.bkg_mask])
             self._average_frame += flux_cube[tdx]
             self._average_frame_count += 1
             flux_cube[tdx] += self.A2.dot(weights_full[tdx]).reshape(self.shape)
@@ -318,7 +355,7 @@ class BackDrop(object):
             flux_cube[tdx] += xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        return weights_basic, weights_full, jitter, ast_mask
+        return weights_basic, weights_full, jitter, bkg, ast_mask
 
     def fit_model_batched(
         self, flux_cube, batch_size=50, test_frame=0, mask_asteroids=True
@@ -356,21 +393,23 @@ class BackDrop(object):
             raise ValueError("Pass an `xp.ndarray` or a `list`")
         self._build_masks(flux_cube[test_frame])
         nbatches = xp.ceil(len(flux_cube) / batch_size).astype(int)
-        weights_basic, weights_full, jitter = [], [], []
+        weights_basic, weights_full, jitter, bkg = [], [], [], []
         l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
         if l[-1] > len(flux_cube):
             l[-1] = len(flux_cube)
         for l1, l2 in zip(l[:-1], l[1:]):
-            w1, w2, j, ast_mask = self._fit_batch(
+            w1, w2, j, bk, ast_mask = self._fit_batch(
                 flux_cube[l1:l2], mask_asteroids=mask_asteroids
             )
             weights_basic.append(w1)
             weights_full.append(w2)
             jitter.append(j)
+            bkg.append(bk)
         self.weights_basic = list(xp.vstack(weights_basic))
         self.weights_full = list(xp.vstack(weights_full))
-        self.jitter = list(xp.vstack(j))
-        _package_jitter(self)
+        self.jitter = list(xp.vstack(jitter))
+        self.bkg = list(xp.vstack(bkg))
+        _package_pca_comps(self)
         return
 
     @property
@@ -398,8 +437,9 @@ class BackDrop(object):
         hdu2 = fits.ImageHDU(np.asarray(self.weights_basic)[s], name="WEIGHTS1")
         hdu3 = fits.ImageHDU(np.asarray(self.weights_full)[s], name="WEIGHTS2")
         hdu4 = fits.ImageHDU(np.asarray(self.jitter_pack)[s], name="JITTER")
-        hdu5 = fits.ImageHDU(np.asarray(self.average_frame), name="AVGFRAME")
-        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4, hdu5])
+        hdu5 = fits.ImageHDU(np.asarray(self.bkg_pack)[s], name="BKG")
+        hdu6 = fits.ImageHDU(np.asarray(self.average_frame), name="AVGFRAME")
+        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4, hdu5, hdu6])
         return hdul
 
     def save(self, output_dir=None, overwrite=False):
@@ -477,7 +517,8 @@ class BackDrop(object):
                 [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
             )
             self.jitter_pack = hdu[4].data
-            self._average_frame = hdu[5].data
+            self.bkg_pack = hdu[5].data
+            self._average_frame = hdu[6].data
             self._average_frame_count = 1
         return self
 
@@ -489,13 +530,19 @@ class BackDrop(object):
 
     @staticmethod
     def from_tpf(tpf, dir=None):
-        return BackDrop(
+        backdrop = BackDrop(
             sector=tpf.sector,
             camera=tpf.camera,
             ccd=tpf.ccd,
             row=np.arange(tpf.shape[1]) + tpf.row,
             column=np.arange(tpf.shape[2]) + tpf.column,
         ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
+        idx, jdx = _align_with_tpf(backdrop, tpf)
+        return backdrop[idx]
+
+    def get_tpf_mask(self, tpf):
+        idx, jdx = _align_with_tpf(self, tpf)
+        return jdx
 
     @staticmethod
     def from_tess_images(
@@ -508,6 +555,7 @@ class BackDrop(object):
         ccd=None,
         verbose=False,
         quality_mask=175,
+        njitter=5000,
     ):
         """Creates a backdrop model from filenames
 
@@ -564,6 +612,8 @@ class BackDrop(object):
             camera=camera,
             ccd=ccd,
             cutout_size=cutout_size,
+            njitter=njitter,
+            verbose=verbose,
         )
         self.tstart = np.asarray(
             [fitsio.read_header(fname, ext=0)["TSTART"] for fname in fnames]
@@ -606,7 +656,7 @@ class BackDrop(object):
         # Step 2: run as a batch...
         def run_batch(fnames):
             nbatches = xp.ceil(len(fnames) / batch_size).astype(int)
-            weights_basic, weights_full, jitter = [], [], []
+            weights_basic, weights_full, jitter, bkg = [], [], [], []
             l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
             if l[-1] > len(fnames):
                 l[-1] = len(fnames)
@@ -622,20 +672,22 @@ class BackDrop(object):
                     load_image(fnames[idx], cutout_size=cutout_size)
                     for idx in np.arange(l1, l2)
                 ]
-                w1, w2, j, ast_mask = self._fit_batch(flux_cube)
+                w1, w2, j, bk, ast_mask = self._fit_batch(flux_cube)
                 weights_basic.append(w1)
                 weights_full.append(w2)
                 jitter.append(j)
+                bkg.append(bk)
                 asteroid_mask += ast_mask
             return (
                 xp.vstack(weights_basic),
                 xp.vstack(weights_full),
                 xp.vstack(jitter),
+                xp.vstack(bkg),
                 asteroid_mask,
             )
 
-        ok = (self.quality & (8192 | quality_mask)) == 0
-        w1, w2, j, self.asteroid_mask = run_batch(fnames[ok])
+        ok = (self.quality.astype(int) & (8192 | quality_mask)) == 0
+        w1, w2, j, bk, self.asteroid_mask = run_batch(fnames[ok])
 
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
         self.weights_basic[ok] = w1
@@ -646,5 +698,8 @@ class BackDrop(object):
         self.jitter = np.zeros((len(fnames), j.shape[1]))
         self.jitter[ok] = j
         self.jitter[~ok] = np.nan
-        _package_jitter(self)
+        self.bkg = np.zeros((len(fnames), bk.shape[1]))
+        self.bkg[ok] = bk
+        self.bkg[~ok] = np.nan
+        _package_pca_comps(self)
         return self

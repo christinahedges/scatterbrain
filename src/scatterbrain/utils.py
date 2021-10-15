@@ -11,6 +11,33 @@ from scipy.signal import medfilt
 from .cupy_numpy_imports import xp
 
 
+def _align_with_tpf(backdrop, tpf):
+    """Returns indicies to align a BackDrop object with a tpf
+
+    Parameters
+    ----------
+    backdrop: scatterbrain.BackDrop
+        BackDrop object to align
+    tpf : lightkurve.TargetPixelFile
+        TPF object to align
+
+    Returns
+    -------
+    backdrop_indices: xp.ndarray
+        Array of indices in the BackDrop that are in the TPF
+    tpf_indices: xp.ndarray
+        Array of indices in the TPF that are in the BackDrop
+    """
+    idxs, jdxs = [], []
+    for idx, t in enumerate(tpf.time.value):
+        k = (backdrop.tstart - t) < 0
+        k &= (backdrop.tstop - t) > 0
+        if k.sum() == 1:
+            idxs.append(idx)
+            jdxs.append(np.where(k)[0][0])
+    return np.asarray(jdxs), np.asarray(idxs)
+
+
 @functools.lru_cache()
 def _make_X(cutout_size=2048, npoly=3):
     idx = (np.arange(0, cutout_size, 512) / 512).astype(int)
@@ -182,7 +209,7 @@ def get_sat_mask(f):
     return ~sat
 
 
-def _package_jitter(backdrop, xpca_components=20):
+def _package_pca_comps(backdrop, xpca_components=20):
     """Packages the jitter terms into detrending vectors similar to CBVs.
     Splits the jitter into timescales of:
         - t < 0.5 days
@@ -201,50 +228,49 @@ def _package_jitter(backdrop, xpca_components=20):
         of the jitter matrix.
     """
 
-    backdrop.jitter = xp.asarray(backdrop.jitter)
-    finite = np.isfinite(backdrop.jitter).all(axis=1)
-    # If there aren't enough jitter components, just return them.
-    if backdrop.jitter.shape[0] < 40:
-        # Not enough times
-        backdrop.jitter_pack = backdrop.jitter
+    for label in ["jitter", "bkg"]:
+        comp = getattr(backdrop, label)
+        comp = xp.asarray(comp)
+        finite = np.isfinite(comp).all(axis=1)
+        # If there aren't enough components, just return them.
+        if comp.shape[0] < 40:
+            setattr(backdrop, label + "_pack", comp)
+            continue
+        if finite.sum() < 50:
+            setattr(backdrop, label + "_pack", comp)
+            continue
+
+        # We split at data downlinks where there is a gap of at least 0.2 days
+        breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
+        breaks = xp.hstack([0, breaks, len(backdrop.tstart[finite])])
+
+        comp_short = comp[finite].copy()
+
+        nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
+        nb = [nb if (nb % 2) == 1 else nb + 1][0]
+
+        def smooth(x):
+            return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
+
+        comp_medium = xp.hstack(
+            [smooth(comp[finite][x1:x2]) for x1, x2 in zip(breaks[:-1], breaks[1:])]
+        ).T
+
+        U1, s, V = pca(comp_short - comp_medium, xpca_components, n_iter=10, raw=True)
+        U2, s, V = pca(comp_medium, xpca_components, n_iter=10, raw=True)
+
+        X = xp.hstack(
+            [
+                U1,
+                U2,
+            ]
+        )
+        X = xp.hstack([X[:, idx::xpca_components] for idx in range(xpca_components)])
+        Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
+        Xall[finite] = X
+
+        setattr(backdrop, label + "_pack", Xall)
         return
-    if finite.sum() < 50:
-        # Not enough pixels
-        backdrop.jitter_pack = backdrop.jitter
-        return
-
-    # We split at data downlinks where there is a gap of at least 0.2 days
-    breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
-    breaks = xp.hstack([0, breaks, len(backdrop.tstart[finite])])
-
-    jitter_short = backdrop.jitter[finite].copy()
-
-    nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
-    nb = [nb if (nb % 2) == 1 else nb + 1][0]
-
-    def smooth(x):
-        return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
-
-    jitter_medium = xp.hstack(
-        [
-            smooth(backdrop.jitter[finite][x1:x2])
-            for x1, x2 in zip(breaks[:-1], breaks[1:])
-        ]
-    ).T
-
-    U1, s, V = pca(jitter_short - jitter_medium, xpca_components, n_iter=10, raw=True)
-    U2, s, V = pca(jitter_medium, xpca_components, n_iter=10, raw=True)
-
-    X = xp.hstack(
-        [
-            U1,
-            U2,
-        ]
-    )
-    X = xp.hstack([X[:, idx::xpca_components] for idx in range(xpca_components)])
-    Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
-    Xall[finite] = X
-    backdrop.jitter_pack = Xall
 
 
 def test_strip(fname):
