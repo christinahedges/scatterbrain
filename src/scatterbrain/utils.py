@@ -232,8 +232,8 @@ def _package_jitter(backdrop, xpca_components=20):
         ]
     ).T
 
-    U1, s, V = pca(jitter_short - jitter_medium, xpca_components, n_iter=10)
-    U2, s, V = pca(jitter_medium, xpca_components, n_iter=10)
+    U1, s, V = pca(jitter_short - jitter_medium, xpca_components, n_iter=10, raw=True)
+    U2, s, V = pca(jitter_medium, xpca_components, n_iter=10, raw=True)
 
     X = xp.hstack(
         [

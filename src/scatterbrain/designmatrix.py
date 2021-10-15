@@ -260,6 +260,7 @@ class TESS_design_matrix(design_matrix):
             row, column = xp.meshgrid(row, column)
             row = row.T
             column = column.T
+            # Should this be 2048?
             self.column, self.row = (column - self.bore_pixel[1]) / (
                 self.cutout_size
             ), (row - self.bore_pixel[0]) / (self.cutout_size)
@@ -509,7 +510,7 @@ class spline_design_matrix(TESS_design_matrix):
 
     def _build(self):
         """Builds a 2048**2 x N matrix"""
-        x = self.column[0] + (self.bore_pixel[1] / self.cutout_size)
+        x = (self.column[0] * self.cutout_size + self.bore_pixel[1]) / self.cutout_size
         knots = (
             xp.linspace(0, 1, self.nknots) + 1e-10
         )  # This stops numerical instabilities where x==knot value
@@ -536,7 +537,9 @@ class spline_design_matrix(TESS_design_matrix):
                 [A1[idx :: self.cutout_size] for idx in range(self.cutout_size)]
             ).tocsr()
         else:
-            x = self.row[:, 0] + +(self.bore_pixel[1] / self.cutout_size)
+            x = (
+                self.row[:, 0] * self.cutout_size + self.bore_pixel[0]
+            ) / self.cutout_size
             As = sparse.vstack(
                 [
                     sparse.csr_matrix(

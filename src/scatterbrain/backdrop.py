@@ -43,6 +43,7 @@ class BackDrop(object):
         tstop=None,
         quality=None,
         verbose=False,
+        njitter=10000,
     ):
         """Initialize a `BackDrop` object either for fitting or loading a model.
 
@@ -71,6 +72,7 @@ class BackDrop(object):
         self.camera = camera
         self.ccd = ccd
         self.verbose = verbose
+        self.njitter = njitter
         self.A1 = radial_spline_design_matrix(
             column=column,
             row=row,
@@ -159,9 +161,11 @@ class BackDrop(object):
         if not hasattr(self, "sat_mask"):
             self.sat_mask = get_sat_mask(frame)
         if not hasattr(self, "jitter_mask"):
-            if (~self.star_mask & self.sat_mask).sum() > 6000:
+            if (~self.star_mask & self.sat_mask).sum() > self.njitter:
                 s = np.random.choice(
-                    (~self.star_mask & self.sat_mask).sum(), size=6000, replace=False
+                    (~self.star_mask & self.sat_mask).sum(),
+                    size=self.njitter,
+                    replace=False,
                 )
                 l = np.asarray(np.where(~self.star_mask & self.sat_mask))
                 l = l[:, s]
@@ -503,7 +507,7 @@ class BackDrop(object):
         camera=None,
         ccd=None,
         verbose=False,
-        quality_mask=32,
+        quality_mask=175,
     ):
         """Creates a backdrop model from filenames
 
