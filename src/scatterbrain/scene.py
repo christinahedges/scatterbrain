@@ -87,9 +87,16 @@ class StarScene:
         return (len(self.tstart), self.cutout_size, self.cutout_size)
 
     def _load_background(self, row=None, column=None):
-        self.background = ScatteredLightBackground.from_disk(
-            sector=self.sector, camera=self.camera, ccd=self.ccd, row=row, column=column
-        )
+        try:
+            self.background = ScatteredLightBackground.from_disk(
+                sector=self.sector,
+                camera=self.camera,
+                ccd=self.ccd,
+                row=row,
+                column=column,
+            )
+        except ValueError:
+            raise ValueError("No background solutions exist on disk.")
 
     def __repr__(self):
         return f"StarScene {self.shape}, Sector {self.sector}, Camera {self.camera}, CCD {self.ccd}"
