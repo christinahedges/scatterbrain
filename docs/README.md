@@ -7,3 +7,8 @@
 
 * add polynomial straps
 * add cholesky solve?
+
+* Remove/refactor "fit_model_batched", lots of overlap with from_tess_images?
+* Rename to better names
+* Make starscene cupy
+* Make asteroid_mask supersampled in time for fast, bright asteroids...?
