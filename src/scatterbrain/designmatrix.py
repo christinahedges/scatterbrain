@@ -580,7 +580,7 @@ class spline_design_matrix(TESS_design_matrix):
         cutout_size=2048,
     ):
         """
-        Create a `cartesian_design_matrix` object.
+        Create a `spline_design_matrix` object.
 
         Parameters
         ----------

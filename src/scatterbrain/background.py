@@ -92,7 +92,7 @@ class ScatteredLightBackground(object):
             prior_mu=2,
             prior_sigma=100,
             cutout_size=cutout_size,
-            npoly=2,
+            npoly=4,
         )
 
         if column is not None:

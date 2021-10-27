@@ -17,7 +17,15 @@ from .version import __version__
 
 @dataclass
 class StarScene:
-    """Class to remove stars from TESS images
+    """Class to remove stars and jitter noise from TESS images.
+
+    This class will take a stack of TESS FFIs, and will use the ScatteredLightBackground
+    class to remove scattered light from the images. The ScatteredLightBackground also
+    provides an estimate of the "jitter" in pixels as the top principal components of
+    bright pixels in the dataset, and the average image. StarScene takes these components
+    and fits each individual pixel time series
+
+
 
     Parameters
     ----------
