@@ -458,7 +458,14 @@ class strap_design_matrix(TESS_design_matrix):
 
     def _build(self):
         d = sparse.csr_matrix(xp.diag(xp.ones(self.column.shape[1])))
-        return sparse.hstack([d] * self.column.shape[0]).T.tocsr()
+        # return sparse.hstack([d] * self.column.shape[0]).T.tocsr()
+        A = sparse.hstack(
+            [
+                sparse.hstack([d] * self.row[:, 0] ** idx).T.tocsr()
+                for idx in range(self.npoly)
+            ]
+        )
+        return A
 
     def __init__(
         self,
@@ -469,6 +476,7 @@ class strap_design_matrix(TESS_design_matrix):
         column=None,
         row=None,
         cutout_size=2048,
+        npoly=2,
     ):
         """
         Create a `strap_design_matrix` object.
@@ -483,16 +491,19 @@ class strap_design_matrix(TESS_design_matrix):
         prior_mu : xp.ndarray, int or float
             The prior mean of the design matrix components
         ccd : int
-                CCD number
+            CCD number
         column : None or xp.ndarray
-                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
         row : None or xp.ndarray
-                The column numbers to evaluate the design matrix at. If None, uses all pixels.
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
         name : str
-                Name for design matrix
+            Name for design matrix
         cutout_size : int
-                Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+            Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        npoly : int
+            Polynomial order for the strap model
         """
+        self.npoly = npoly
         super().__init__(
             name="strap",
             sigma_f=sigma_f,

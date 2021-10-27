@@ -5,6 +5,8 @@ import numpy as np
 from fbpca import pca
 from matplotlib import animation
 from scipy.signal import medfilt
+from astropy.stats import sigma_clipped_stats
+from astropy.convolution import convolve, Gaussian1DKernel
 
 from .cupy_numpy_imports import xp
 
@@ -230,7 +232,7 @@ def movie(data, out="out.mp4", scale="linear", title="", **kwargs):
     anim.save(out, dpi=150)
 
 
-def test_strip(fname):
+def test_strip(fname, value=False):
     """Test whether any of the CCD strips are saturated"""
     f = np.median(
         np.abs(fitsio.FITS(fname)[1][:10, 44 : 2048 + 44].mean(axis=0)).reshape(
@@ -238,7 +240,15 @@ def test_strip(fname):
         ),
         axis=1,
     )
+    if value:
+        return f
     return f > 10000
+
+
+def identify_bad_frames(fnames):
+    test = np.asarray([test_strip(fname, value=True) for fname in fnames])
+    s = sigma_clipped_stats(test.std(axis=1))
+    return convolve(((test.std(axis=1) - s[1]) / s[2]) > 8, Gaussian1DKernel(2)) != 0
 
 
 def minmax(x, shape=2048):

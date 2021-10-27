@@ -19,7 +19,7 @@ from .utils import (
     _package_pca_comps,
     get_sat_mask,
     get_star_mask,
-    test_strip,
+    identify_bad_frames,
 )
 from .version import __version__
 
@@ -46,6 +46,7 @@ class ScatteredLightBackground(object):
         quality=None,
         verbose=False,
         njitter=10000,
+        strap_npoly=2,
     ):
         """Initialize a `ScatteredLightBackground` object either for fitting or loading a model.
 
@@ -67,7 +68,6 @@ class ScatteredLightBackground(object):
                 Number of knots to for spline matrix
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
-
         """
 
         self.sector = sector
@@ -75,6 +75,7 @@ class ScatteredLightBackground(object):
         self.ccd = ccd
         self.verbose = verbose
         self.njitter = njitter
+        self.strap_npoly = strap_npoly
         self.A1 = radial_spline_design_matrix(
             column=column,
             row=row,
@@ -94,6 +95,20 @@ class ScatteredLightBackground(object):
             npoly=2,
         )
 
+        if column is not None:
+            strap_prior_sigma = np.hstack(
+                [
+                    np.ones(column.shape[0]) * 30 ** (idx + 1)
+                    for idx in range(self.strap_npoly)
+                ]
+            )
+        else:
+            strap_prior_sigma = np.hstack(
+                [
+                    np.ones(cutout_size) * 30 ** (idx + 1)
+                    for idx in range(self.strap_npoly)
+                ]
+            )
         self.A2 = (
             spline_design_matrix(
                 column=column,
@@ -117,8 +132,9 @@ class ScatteredLightBackground(object):
                 row=row,
                 ccd=ccd,
                 sigma_f=sigma_f,
-                prior_sigma=30,
+                prior_sigma=strap_prior_sigma,
                 cutout_size=cutout_size,
+                npoly=self.strap_npoly,
             )
         )
         self.cutout_size = cutout_size
@@ -484,6 +500,7 @@ class ScatteredLightBackground(object):
         for key in ["sector", "camera", "ccd"]:
             self.hdu0.header[key] = getattr(self, key)
         self.hdu0.header["CUTSIZE"] = getattr(self, "cutout_size")
+        self.hdu0.header["STRPPOLY"] = getattr(self, "strap_npoly")
 
         if output_dir is None:
             output_dir = f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
@@ -546,8 +563,21 @@ class ScatteredLightBackground(object):
                 self.quality = hdu[1].data["QUALITY"]
             self.weights_basic = list(hdu[2].data)
             weights_full = hdu[3].data
+            self.strap_npoly = hdu[0].header["STRPPOLY"]
+            # We have to do some work to get out just the column pixels
+            # we are interested in
+            strap_weights = np.hstack(
+                (
+                    weights_full[:, -2048 * self.strap_npoly :].reshape(
+                        (weights_full.shape[0], self.strap_npoly, 2048)
+                    )[:, :, self.column]
+                ).transpose([1, 0, 2])
+            )
             self.weights_full = np.hstack(
-                [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
+                [
+                    weights_full[:, : -2048 * self.strap_npoly],
+                    strap_weights,
+                ]
             )
             self.jitter_pack = hdu[4].data
             self.bkg_pack = hdu[5].data
@@ -630,7 +660,7 @@ class ScatteredLightBackground(object):
             except ValueError:
                 raise ValueError("Can not find a CCD number")
 
-        blown_out_strips = np.asarray([test_strip(fname) for fname in fnames])
+        blown_out_frames = identify_bad_frames(fnames)
         # make a ScatteredLightBackground object
         self = ScatteredLightBackground(
             sector=sector,
@@ -651,7 +681,7 @@ class ScatteredLightBackground(object):
         self.quality = np.asarray(
             [fitsio.read_header(fname, ext=1)["DQUALITY"] for fname in fnames]
         )
-        self.quality[blown_out_strips.any(axis=1)] |= 8192
+        self.quality[blown_out_frames] |= 8192
         # Step 1: find a good test frame
         if test_frame is None:
             a1, a2 = (
@@ -745,6 +775,5 @@ class ScatteredLightBackground(object):
                     times=[self.tstart[test_frame]],
                 )
             ] = np.nanmedian(self._average_frame)
-        _package_pca_comps(self)
         _package_pca_comps(self)
         return self

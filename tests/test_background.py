@@ -71,6 +71,7 @@ def test_background_save():
     assert len(b.weights_basic) == 2
     assert np.isfinite(np.asarray(b.weights_basic)).all()
     assert np.isfinite(np.asarray(b.weights_full)).all()
+    assert b.strap_npoly == 2
     b.save(output_dir="")
     b = ScatteredLightBackground(1, 1, 1, column=xp.arange(10), row=xp.arange(9)).load(
         "tessbackdrop_sector1_camera1_ccd1.fits", dir=""
@@ -81,6 +82,7 @@ def test_background_save():
     b = ScatteredLightBackground.from_disk(
         1, 1, 1, column=xp.arange(10), row=xp.arange(9), dir=""
     )
+    assert b.strap_npoly == 2
     model = b.model(0)
     assert np.isfinite(model).all()
     assert model.shape == (9, 10)
