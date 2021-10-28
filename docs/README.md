@@ -6,6 +6,6 @@
 # TODO
 
 * add cholesky solve?
-* Remove/refactor "fit_model_batched", lots of overlap with from_tess_images?
 * Make starscene cupy
 * Make asteroid_mask supersampled in time for fast, bright asteroids...?
+* Add files on Zenodo so we can load them if they aren't local

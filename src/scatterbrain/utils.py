@@ -2,11 +2,11 @@
 import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.convolution import Gaussian1DKernel, convolve
+from astropy.stats import sigma_clipped_stats
 from fbpca import pca
 from matplotlib import animation
 from scipy.signal import medfilt
-from astropy.stats import sigma_clipped_stats
-from astropy.convolution import convolve, Gaussian1DKernel
 
 from .cupy_numpy_imports import xp
 

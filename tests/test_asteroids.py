@@ -5,7 +5,7 @@ from scatterbrain.asteroids import get_asteroid_locations, get_asteroid_mask
 
 
 def test_asteroid_locs():
-    row, col = get_asteroid_locations(1, 1, 3)
+    vmag, row, col = get_asteroid_locations(1, 1, 3)
     assert len(row.shape) == 2
     assert row.shape == col.shape
     assert isinstance(row[0, 0], np.int16)

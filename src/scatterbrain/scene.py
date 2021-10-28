@@ -320,12 +320,19 @@ class StarScene:
             Which orbit you are processing
         """
         tmask = (self.background.quality == 0) & self.orbit_masks[orbit - 1]
-        row, col = get_asteroid_locations(
+        vmag, row, col = get_asteroid_locations(
             self.sector, self.camera, self.ccd, times=self.tstart[tmask]
         )
         t = np.arange(row.shape[1])
 
+        aps = {"faint": 3, "middle": 5, "bright": 7}
+        tests = {
+            "faint": lambda x: x > 14,
+            "middle": lambda x: (x <= 14) & (x > 11),
+            "bright": lambda x: x <= 11,
+        }
         for idx in np.arange(row.shape[0]):
+            ap = [aps[key] for key, item in tests.items() if item(vmag[idx])][0]
             k = (
                 (row[idx] >= loc[0][0])
                 & (row[idx] < loc[0][1])
@@ -340,7 +347,7 @@ class StarScene:
                     [
                         minmax(v + offset, flux_cube.shape[1])
                         for v in [rdx, cdx]
-                        for offset in np.arange(-3, 4)
+                        for offset in np.arange(-ap, ap + 1)
                     ]
                 ),
                 2,

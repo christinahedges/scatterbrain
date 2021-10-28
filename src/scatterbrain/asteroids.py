@@ -50,7 +50,7 @@ def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
 
     sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))
     df_raw = pd.read_csv(catalog_fname, low_memory=False)
-    for sector in np.arange(12, 29):
+    for sector in np.atleast_1d(sectors):
         df = (
             df_raw[
                 (df_raw.max_Vmag != 0)
@@ -68,6 +68,7 @@ def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
                 [
                     "camera",
                     "ccd",
+                    "vmag",
                     [f"{i}r" for i in np.arange(len(t))],
                     [f"{i}c" for i in np.arange(len(t))],
                 ]
@@ -77,7 +78,10 @@ def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
         names = []
         jdx = 0
         for idx, d in tqdm(df.iterrows(), total=len(df), desc=f"Sector {sector}"):
-            ast = te.ephem(d.pdes, interpolation_step="6H", time=t, sector=sector)
+            ast = te.ephem(
+                d.pdes, interpolation_step="6H", time=t, sector=sector, verbose=True
+            )[["sector", "camera", "ccd", "column", "row", "vmag"]]
+
             ast.replace(np.nan, -1, inplace=True)
             for camera in ast.camera.unique():
                 for ccd in ast[ast.camera == camera].ccd.unique():
@@ -87,9 +91,13 @@ def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
                     row[k] = ast[j].row
                     col[k] = ast[j].column
                     names.append(d.pdes)
-                    asteroid_df.loc[jdx] = np.hstack([camera, ccd, row, col]).astype(
-                        np.int16
-                    )
+                    if (ast["vmag"] > 0).sum() == 0:
+                        vmagmean = -99
+                    else:
+                        vmagmean = np.round(ast["vmag"][ast["vmag"] > 0].mean())
+                    asteroid_df.loc[jdx] = np.hstack(
+                        [camera, ccd, vmagmean, row, col]
+                    ).astype(np.int16)
                     jdx += 1
         path = f"{PACKAGEDIR}/data/sector{sector:03}/"
         if not os.path.isdir(path):
@@ -115,6 +123,7 @@ def get_asteroid_locations(sector=1, camera=1, ccd=1, times=None):
     df = pd.read_hdf(f"{PACKAGEDIR}/data/sector{sector:03}/bright_asteroids.hdf")
     df = df[(df.camera == camera) & (df.ccd == ccd)].reset_index(drop=True)
 
+    vmag = np.asarray(df["vmag"])
     row = np.asarray(df)[:, 2:][
         :, np.asarray([d.endswith("r") for d in df.columns[2:]])
     ]
@@ -132,7 +141,7 @@ def get_asteroid_locations(sector=1, camera=1, ccd=1, times=None):
             [np.isclose(sector_times, t, atol=1e-6) for t in times], axis=0
         )
 
-    return row[:, time_mask], col[:, time_mask]
+    return vmag, row[:, time_mask], col[:, time_mask]
 
 
 def get_asteroid_mask(sector=1, camera=1, ccd=1, cutout_size=2048, times=None):
@@ -140,22 +149,30 @@ def get_asteroid_mask(sector=1, camera=1, ccd=1, cutout_size=2048, times=None):
 
     Use time mask to specify which times to use.
     """
-    aper_locs = np.asarray(np.where(np.hypot(*np.mgrid[-3:3, -3:3]) < 6 ** 0.5)).T - 3
 
     mask = np.zeros((cutout_size, cutout_size), bool)
 
-    row, col = get_asteroid_locations(
+    vmag, row, col = get_asteroid_locations(
         sector=sector, camera=camera, ccd=ccd, times=times
     )
-    for idx in range(row.shape[0]):
-        k = (
-            (row[idx] >= 0)
-            & (col[idx] > 0)
-            & (row[idx] < cutout_size)
-            & (col[idx] < cutout_size)
-        )
-        for loc in aper_locs:
-            l1 = minmax(row[idx, k] + loc[0], shape=cutout_size)
-            l2 = minmax(col[idx, k] + loc[1], shape=cutout_size)
-            mask[l1, l2] = True
+
+    def func(row, col, ap=3):
+        X, Y = np.mgrid[-ap : ap + 1, -ap : ap + 1]
+        aper = np.hypot(X, Y) <= ap
+        aper_locs = np.asarray(np.where(aper)).T - ap
+        for idx in range(row.shape[0]):
+            k = (
+                (row[idx] >= 0)
+                & (col[idx] > 0)
+                & (row[idx] < cutout_size)
+                & (col[idx] < cutout_size)
+            )
+            for loc in aper_locs:
+                l1 = minmax(row[idx, k] + loc[0], shape=cutout_size)
+                l2 = minmax(col[idx, k] + loc[1], shape=cutout_size)
+                mask[l1, l2] = True
+
+    func(row[vmag >= 14], col[vmag >= 14], ap=3)
+    func(row[(vmag < 14) & (vmag >= 11)], col[(vmag < 14) & (vmag >= 11)], ap=5)
+    func(row[(vmag < 11)], col[(vmag < 11)], ap=7)
     return mask

@@ -44,8 +44,7 @@ def test_background_cutout():
     f = fitsio.read(fname).astype(xp.float32)[:128, 45 : 128 + 45]
     frames = xp.asarray([f, f], dtype=xp.float32)
     b = ScatteredLightBackground(1, 1, 1, cutout_size=128)
-    b.fit_model(frames)
-    b.fit_model_batched(frames, batch_size=2, mask_asteroids=False)
+    b.fit_model(frames, batch_size=2, mask_asteroids=False)
     assert len(b.weights_full) == 2
     assert len(b.weights_basic) == 2
     model = b.model(0)
@@ -65,8 +64,7 @@ def test_background_save():
     f = load_image(fname)
     frames = xp.asarray([f, f], dtype=xp.float32)
     b = ScatteredLightBackground(1, 1, 1)
-    b.fit_model(frames)
-    b.fit_model_batched(frames, batch_size=2, mask_asteroids=False)
+    b.fit_model(frames, batch_size=2, mask_asteroids=False)
     assert len(b.weights_full) == 2
     assert len(b.weights_basic) == 2
     assert np.isfinite(np.asarray(b.weights_basic)).all()
