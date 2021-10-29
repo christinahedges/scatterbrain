@@ -176,6 +176,8 @@ class ScatteredLightBackground(object):
 
     def __getitem__(self, key):
         """Set indexing"""
+        if self.tstart is None:
+            raise ValueError("Can not slice an object with no `tstart` array.")
         attrs = [
             item
             for item in self.__dir__()
@@ -189,6 +191,13 @@ class ScatteredLightBackground(object):
             if isinstance(getattr(self, attr), list):
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
+
+    @property
+    def path(self):
+        return (
+            f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
+            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+        )
 
     def _build_masks(self, frame):
         """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
@@ -273,9 +282,14 @@ class ScatteredLightBackground(object):
         """Model from the second design matrix"""
         return self.A2.dot(self.weights_full[tdx]).reshape(self.shape)
 
-    def model(self, time_index):
+    def model(self, time_index=None):
         """Build a model for a frame with index `time_index`"""
-        return self._model_basic(time_index) + self._model_full(time_index)
+        if time_index is None:
+            time_index = np.arange(self.tstart.shape[0])
+        time_index = np.atleast_1d(time_index)
+        return np.asarray(
+            [self._model_basic(tdx) + self._model_full(tdx) for tdx in time_index]
+        )
 
     @property
     def average_frame(self):
@@ -597,8 +611,8 @@ class ScatteredLightBackground(object):
             sector=tpf.sector,
             camera=tpf.camera,
             ccd=tpf.ccd,
-            row=np.arange(tpf.shape[1]) + tpf.row,
-            column=np.arange(tpf.shape[2]) + tpf.column,
+            row=np.arange(tpf.shape[1]) + tpf.row - 1,
+            column=np.arange(tpf.shape[2]) + tpf.column - 44 - 1,
         ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
         idx, jdx = _align_with_tpf(backdrop, tpf)
         return backdrop[idx]

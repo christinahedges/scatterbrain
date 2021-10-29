@@ -172,7 +172,7 @@ def get_asteroid_mask(sector=1, camera=1, ccd=1, cutout_size=2048, times=None):
                 l2 = minmax(col[idx, k] + loc[1], shape=cutout_size)
                 mask[l1, l2] = True
 
-    func(row[vmag >= 14], col[vmag >= 14], ap=3)
-    func(row[(vmag < 14) & (vmag >= 11)], col[(vmag < 14) & (vmag >= 11)], ap=5)
-    func(row[(vmag < 11)], col[(vmag < 11)], ap=7)
+    func(row[vmag >= 14], col[vmag >= 14], ap=5)
+    func(row[(vmag < 14) & (vmag >= 11)], col[(vmag < 14) & (vmag >= 11)], ap=7)
+    func(row[(vmag < 11)], col[(vmag < 11)], ap=9)
     return mask

@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 import fitsio
 import numpy as np
@@ -11,8 +12,9 @@ from . import PACKAGEDIR
 from .asteroids import get_asteroid_locations
 from .background import ScatteredLightBackground
 from .cupy_numpy_imports import load_image, xp
-from .utils import minmax
+from .utils import minmax, _align_with_tpf
 from .version import __version__
+from copy import deepcopy
 
 
 @dataclass
@@ -35,17 +37,26 @@ class StarScene:
         TESS camera number
     ccd : int
         TESS CCD number
-    cutout_size: int
-        This will process the fits images in "cutouts". The larger the cutout,
+    batch_size: int
+        This will process the fits images in "batches". The larger the batch_size,
         the more memory fitting will take. 512 is a sane default.
     """
 
     sector: int
     camera: int
     ccd: int
-    cutout_size: int = 512
+    row: Optional = None
+    column: Optional = None
+    batch_size: int = 512
 
     def __post_init__(self):
+        if (self.row is None) | (self.column is None):
+            self.row = np.arange(2048)
+            self.column = np.arange(2048)
+        else:
+            self.row = np.atleast_1d(self.row)
+            self.column = np.atleast_1d(self.column)
+
         self.background = ScatteredLightBackground.from_disk(
             sector=self.sector,
             camera=self.camera,
@@ -69,22 +80,19 @@ class StarScene:
             self._get_design_matrix(self.orbit_masks[1]),
         ]
         self.weights = [
-            np.zeros((self.Xs[0].shape[1], 2048, 2048), np.float32),
-            np.zeros((self.Xs[0].shape[1], 2048, 2048), np.float32),
+            np.zeros(
+                (self.Xs[0].shape[1], self.row.shape[0], self.column.shape[0]),
+                np.float32,
+            ),
+            np.zeros(
+                (self.Xs[0].shape[1], self.row.shape[0], self.column.shape[0]),
+                np.float32,
+            ),
         ]
+        self.tstart = self.background.tstart
+        self.tstop = self.background.tstop
+        self.quality = self.background.quality
         return
-
-    @property
-    def tstart(self):
-        return self.background.tstart
-
-    @property
-    def tstop(self):
-        return self.background.tstop
-
-    @property
-    def quality(self):
-        return self.background.quality
 
     @property
     def empty(self):
@@ -92,9 +100,9 @@ class StarScene:
 
     @property
     def shape(self):
-        return (len(self.tstart), self.cutout_size, self.cutout_size)
+        return (len(self.tstart), self.row.shape[0], self.column.shape[0])
 
-    def _load_background(self, row=None, column=None):
+    def _load_background(self, row, column):
         try:
             self.background = ScatteredLightBackground.from_disk(
                 sector=self.sector,
@@ -116,6 +124,24 @@ class StarScene:
             f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
 
+    def __getitem__(self, key):
+        """Set indexing"""
+        if self.tstart is None:
+            raise ValueError("Can not slice an object with no `tstart` array.")
+        attrs = [
+            item
+            for item in self.__dir__()
+            if not item.startswith("_")
+            and isinstance(getattr(self, item), (xp.ndarray, list))
+            and (xp.asarray(getattr(self, item)).shape[0] == len(self.tstart))
+        ]
+        copy = deepcopy(self)
+        for attr in attrs:
+            setattr(copy, attr, np.asarray(getattr(self, attr))[key])
+            if isinstance(getattr(self, attr), list):
+                setattr(copy, attr, list(getattr(copy, attr)))
+        return copy
+
     def _get_design_matrix(self, mask=None, ncomps=20):
         """Construct a design matrix from the ScatteredLightBackground object"""
         if mask is None:
@@ -131,7 +157,7 @@ class StarScene:
         return X
 
     @staticmethod
-    def from_tess_images(fnames, sector=None, camera=None, ccd=None, cutout_size=512):
+    def from_tess_images(fnames, sector=None, camera=None, ccd=None, batch_size=512):
         """Class to remove stars from TESS images
 
         Parameters
@@ -144,7 +170,7 @@ class StarScene:
             TESS camera number
         ccd : int
             TESS CCD number
-        cutout_size: int
+        batch_size: int
             This will process the fits images in "cutouts". The larger the cutout,
             the more memory fitting will take. 512 is a sane default.
         """
@@ -168,8 +194,8 @@ class StarScene:
                 ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
             except ValueError:
                 raise ValueError("Can not find a CCD number")
-        self = StarScene(sector=sector, camera=camera, ccd=ccd, cutout_size=cutout_size)
-        self._load_background(row=np.arange(cutout_size), column=np.arange(cutout_size))
+        self = StarScene(sector=sector, camera=camera, ccd=ccd, batch_size=batch_size)
+        self.fit_model(fnames=fnames, batch_size=batch_size)
         return self
 
     @property
@@ -179,13 +205,13 @@ class StarScene:
         [[mininmum row, maxmimum row], [minimum column, maximum column]]
         """
         locs = []
-        nbatches = 2048 // self.cutout_size
+        nbatches = 2048 // self.batch_size
         for bdx1 in range(nbatches):
             for bdx2 in range(nbatches):
                 locs.append(
                     [
-                        [self.cutout_size * bdx1, self.cutout_size * (bdx1 + 1)],
-                        [self.cutout_size * bdx2, self.cutout_size * (bdx2 + 1)],
+                        [self.batch_size * bdx1, self.batch_size * (bdx1 + 1)],
+                        [self.batch_size * bdx2, self.batch_size * (bdx2 + 1)],
                     ]
                 )
         return locs
@@ -229,16 +255,30 @@ class StarScene:
                 "ccd",
             ]:
                 setattr(self, key, hdu[0].header[key])
-            setattr(self, "cutout_size", hdu[0].header["CUTSIZE"])
+            setattr(self, "batch_size", hdu[0].header["BATSIZE"])
 
-            self.weights = [hdu[1].data, hdu[2].data]
+        self.weight_row = np.arange(self.row[0], self.row[-1] + 1)
+        self.weight_column = np.arange(self.column[0], self.column[-1] + 1)
+        self.weights = [
+            fitsio.FITS(dir + fname)[1][
+                :, self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
+            ],
+            fitsio.FITS(dir + fname)[2][
+                :, self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
+            ],
+        ]
         return self
 
     @staticmethod
-    def from_disk(sector, camera, ccd, dir=None):
-        return StarScene(sector=sector, camera=camera, ccd=ccd, cutout_size=16).load(
-            (sector, camera, ccd), dir=dir
-        )
+    def from_disk(sector, camera, ccd, dir=None, row=None, column=None):
+        return StarScene(
+            sector=sector,
+            camera=camera,
+            ccd=ccd,
+            batch_size=512,
+            row=row,
+            column=column,
+        ).load((sector, camera, ccd), dir=dir)
 
     def _package_weights_hdulist(self):
         hdu0 = self.hdu0
@@ -255,7 +295,7 @@ class StarScene:
         self.hdu0.header["VERSION"] = __version__
         for key in ["sector", "camera", "ccd"]:
             self.hdu0.header[key] = getattr(self, key)
-        self.hdu0.header["CUTSIZE"] = getattr(self, "cutout_size")
+        self.hdu0.header["BATSIZE"] = getattr(self, "batch_size")
 
         if output_dir is None:
             output_dir = f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
@@ -325,7 +365,7 @@ class StarScene:
         )
         t = np.arange(row.shape[1])
 
-        aps = {"faint": 3, "middle": 5, "bright": 7}
+        aps = {"faint": 5, "middle": 7, "bright": 9}
         tests = {
             "faint": lambda x: x > 14,
             "middle": lambda x: (x <= 14) & (x > 11),
@@ -401,15 +441,12 @@ class StarScene:
                     :, loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]
                 ] = ws.reshape((ws.shape[0], *y.shape[1:])).astype(np.float32)
 
-    @staticmethod
-    def fit_model(fnames, cutout_size=512):
+    def fit_model(self, fnames, batch_size=512):
         """Fit a StarScene model to a set of TESS filenames"""
-        self = StarScene.from_tess_images(fnames, cutout_size=cutout_size)
         for loc in tqdm(self.locs):
             self._fill_weights_block(fnames=fnames, loc=loc)
-        return self
 
-    def model(self, row, column, time_indices=None):
+    def model(self, row=None, column=None, time_indices=None):
         """Returns a model for a given row and column.
 
         Parameters
@@ -427,24 +464,32 @@ class StarScene:
             Array of shape (time_indices, row, column) which has the full scene
             model, including scattered light.
         """
+        if (row is None) | (column is None):
+            row, column = self.row, self.column
         if time_indices is None:
             time_indices = np.arange(self.shape[0])
         single_frame = False
         if isinstance(time_indices, int):
             time_indices = [time_indices]
             single_frame = True
-        self._load_background(row=row, column=column)
-        w1 = self.weights[0][:, row][:, :, column].reshape(
+        if not (
+            (self.background.row == row).all()
+            and (self.background.column == column).all()
+        ):
+            self._load_background(row=row, column=column)
+        r = np.where(np.in1d(self.weight_row, row))[0]
+        c = np.where(np.in1d(self.weight_column, column))[0]
+        w1 = self.weights[0][:, r][:, :, c].reshape(
             (self.weights[0].shape[0], row.shape[0] * column.shape[0])
         )
-        w2 = self.weights[1][:, row][:, :, column].reshape(
+        w2 = self.weights[1][:, r][:, :, c].reshape(
             (self.weights[1].shape[0], row.shape[0] * column.shape[0])
         )
         xmask1 = np.in1d(np.where(self.orbit_masks[0])[0], time_indices)
         xmask2 = np.in1d(np.where(self.orbit_masks[1])[0], time_indices)
         model = np.vstack([self.Xs[0][xmask1].dot(w1), self.Xs[1][xmask2].dot(w2)])
         model = model.reshape((model.shape[0], row.shape[0], column.shape[0]))
-        background = np.asarray([self.background.model(tdx) for tdx in time_indices])
+        background = self.background.model(time_indices)
         if single_frame:
             return model[0] + self.background.average_frame + background[0]
         return model + self.background.average_frame + background
@@ -460,9 +505,7 @@ class StarScene:
             c1, c2 = column3d[mask].min(), column3d[mask].max() + 1
 
             self._load_background(np.arange(r1, r2), np.arange(c1, c2))
-            background = np.asarray(
-                [self.background.model(tdx) for tdx in np.where(mask)[0]]
-            )
+            background = self.background.model(np.where(mask)[0])
             for idx, tdx, row, column in zip(
                 np.arange(mask.sum()), np.where(mask)[0], row3d[mask], column3d[mask]
             ):
@@ -479,3 +522,19 @@ class StarScene:
                         .reshape((row.shape[0], column.shape[0]))
                     )
         return model
+
+    @staticmethod
+    def from_tpf(tpf, dir=None):
+        scene = StarScene(
+            sector=tpf.sector,
+            camera=tpf.camera,
+            ccd=tpf.ccd,
+            row=np.arange(tpf.shape[1]) + tpf.row - 1,
+            column=np.arange(tpf.shape[2]) + tpf.column - 44 - 1,
+        ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
+        idx, jdx = _align_with_tpf(scene, tpf)
+        return scene[idx]
+
+    def get_tpf_mask(self, tpf):
+        idx, jdx = _align_with_tpf(self, tpf)
+        return jdx

@@ -1,4 +1,5 @@
 import os
+import pytest
 
 from scatterbrain import PACKAGEDIR, ScatteredLightBackground, __version__
 from scatterbrain.cupy_numpy_imports import fitsio, load_image, np, xp
@@ -53,10 +54,19 @@ def test_background_cutout():
     assert b.star_mask.shape == (128, 128)
     assert b.sat_mask.shape == (128, 128)
     assert b.average_frame.shape == (128, 128)
-
-    ScatteredLightBackground.from_tess_images(
+    with pytest.raises(ValueError):
+        b = b[:1]
+    b = ScatteredLightBackground.from_tess_images(
         [fname, fname], sector=1, batch_size=2, cutout_size=128, quality_mask=0
     )
+    b = b[:1]
+    assert len(b.weights_full) == 1
+    assert len(b.weights_basic) == 1
+    assert model.shape == (128, 128)
+    assert np.isfinite(b.average_frame).all()
+    assert b.star_mask.shape == (128, 128)
+    assert b.sat_mask.shape == (128, 128)
+    assert b.average_frame.shape == (128, 128)
 
 
 def test_background_save():

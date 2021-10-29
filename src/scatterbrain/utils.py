@@ -11,27 +11,27 @@ from scipy.signal import medfilt
 from .cupy_numpy_imports import xp
 
 
-def _align_with_tpf(backdrop, tpf):
+def _align_with_tpf(object, tpf):
     """Returns indicies to align a BackDrop object with a tpf
 
     Parameters
     ----------
-    backdrop: scatterbrain.BackDrop
+    object: scatterbrain.ScatteredLightBackground or scatterbrain.StarScene
         BackDrop object to align
     tpf : lightkurve.TargetPixelFile
         TPF object to align
 
     Returns
     -------
-    backdrop_indices: xp.ndarray
+    indices: xp.ndarray
         Array of indices in the BackDrop that are in the TPF
     tpf_indices: xp.ndarray
         Array of indices in the TPF that are in the BackDrop
     """
     idxs, jdxs = [], []
     for idx, t in enumerate(tpf.time.value):
-        k = (backdrop.tstart - t) < 0
-        k &= (backdrop.tstop - t) > 0
+        k = (object.tstart - t) < 0
+        k &= (object.tstop - t) > 0
         if k.sum() == 1:
             idxs.append(idx)
             jdxs.append(np.where(k)[0][0])
