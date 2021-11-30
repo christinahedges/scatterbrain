@@ -284,9 +284,12 @@ class ScatteredLightBackground(object):
 
     def model(self, time_index=None):
         """Build a model for a frame with index `time_index`"""
+        single_frame = not hasattr(time_index, "__iter__")
         if time_index is None:
             time_index = np.arange(self.tstart.shape[0])
         time_index = np.atleast_1d(time_index)
+        if single_frame:
+            return self._model_basic(time_index[0]) + self._model_full(time_index[0])
         return np.asarray(
             [self._model_basic(tdx) + self._model_full(tdx) for tdx in time_index]
         )

@@ -195,6 +195,7 @@ class StarScene:
             except ValueError:
                 raise ValueError("Can not find a CCD number")
         self = StarScene(sector=sector, camera=camera, ccd=ccd, batch_size=batch_size)
+        return self
         self.fit_model(fnames=fnames, batch_size=batch_size)
         return self
 
@@ -365,7 +366,7 @@ class StarScene:
         )
         t = np.arange(row.shape[1])
 
-        aps = {"faint": 5, "middle": 7, "bright": 9}
+        aps = {"faint": 3, "middle": 3, "bright": 5}
         tests = {
             "faint": lambda x: x > 14,
             "middle": lambda x: (x <= 14) & (x > 11),
@@ -411,11 +412,16 @@ class StarScene:
         """
         for orbit in [1, 2]:
             y = self.get_images(fnames, loc, orbit=orbit)
+
             self._mask_asteroids(y, loc=loc, orbit=orbit)
             s = (y.shape[0], np.product(y.shape[1:]))
             X = self.Xs[orbit - 1][
                 self.background.quality[self.orbit_masks[orbit - 1]] == 0
             ]
+            import pdb
+
+            pdb.set_trace()
+
             ws = np.linalg.solve(X.T.dot(X), X.T.dot(y.reshape(s)))
             if iter:
                 res = y - X.dot(ws).reshape(y.shape)

@@ -9,3 +9,5 @@
 * Make starscene cupy
 * Make asteroid_mask supersampled in time for fast, bright asteroids...?
 * Add files on Zenodo so we can load them if they aren't local
+* Add a TESSCut Corrector class
+* Consider swapping third order polynomial in StarScene to a low order spline for nicer priors and better variability removal?
