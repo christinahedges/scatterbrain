@@ -5,6 +5,7 @@ nav:
     - ScatteredLightBackground API: background.md
     - StarScene API: scene.md
     - Data Flow Diagram : flowchart.md
+    - Making asteroid masks: how-to-get-asteroid-masks.ipynb
     - Changelog : CHANGES.md
 
 theme:
@@ -20,7 +21,7 @@ plugins:
   - include-markdown
   - search
   - mkdocs-jupyter:
-      execute: True
+      execute: False
   - mkdocstrings:
       default_handler: python
       handlers:

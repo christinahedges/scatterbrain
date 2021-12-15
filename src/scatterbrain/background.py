@@ -6,7 +6,6 @@ from astropy.io import fits
 from tqdm import tqdm
 
 from . import PACKAGEDIR
-from .asteroids import get_asteroid_mask
 from .cupy_numpy_imports import load_image, np, xp
 from .designmatrix import (
     cartesian_design_matrix,
@@ -20,6 +19,9 @@ from .utils import (
     get_sat_mask,
     get_star_mask,
     identify_bad_frames,
+    _validate_inputs,
+    get_asteroid_mask,
+    get_min_image_from_filenames,
 )
 from .version import __version__
 
@@ -196,7 +198,7 @@ class ScatteredLightBackground(object):
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
 
     def _build_masks(self, frame):
@@ -284,15 +286,35 @@ class ScatteredLightBackground(object):
 
     def model(self, time_index=None):
         """Build a model for a frame with index `time_index`"""
-        single_frame = not hasattr(time_index, "__iter__")
         if time_index is None:
             time_index = np.arange(self.tstart.shape[0])
+        single_frame = not hasattr(time_index, "__iter__")
         time_index = np.atleast_1d(time_index)
         if single_frame:
             return self._model_basic(time_index[0]) + self._model_full(time_index[0])
         return np.asarray(
             [self._model_basic(tdx) + self._model_full(tdx) for tdx in time_index]
         )
+
+    def diagnose(self, fnames, ntimes=4):
+        import matplotlib.pyplot as plt
+
+        tdxs = np.linspace(0, self.weights_full.shape[0], ntimes + 2, dtype=int)[1:-1]
+        fig, ax = plt.subplots(ntimes, 3, figsize=(4 * 3, 4 * ntimes))
+        for jdx, tdx in enumerate(tdxs):
+            while self.quality[tdx] != 0:
+                tdx += 1
+            dat = load_image(fnames[tdx])[self.row][:, self.column]
+            v = np.nanpercentile(dat, (5, 95))
+            ax[jdx, 0].imshow(dat, vmin=v[0], vmax=v[1])
+            ax[jdx, 0].set_ylabel(f"{self.tstart[tdx]} BTJD")
+            ax[jdx, 1].imshow(self.model(tdx), vmin=0, vmax=v[1] - v[0])
+            ax[jdx, 2].imshow(dat - self.model(tdx), vmin=0, vmax=v[1] - v[0])
+            for idx, title in enumerate(["Data", "Model", "Residuals"]):
+                if jdx == 0:
+                    ax[jdx, idx].set(title=title)
+                ax[jdx, idx].set(xticks=[], yticks=[])
+        plt.tight_layout()
 
     @property
     def average_frame(self):
@@ -376,6 +398,7 @@ class ScatteredLightBackground(object):
         if l[-1] > len(input):
             l[-1] = len(input)
         asteroid_mask = np.zeros((self.cutout_size, self.cutout_size), dtype=int)
+
         for l1, l2 in tqdm(
             zip(l[:-1], l[1:]),
             desc=f"Fitting frames in batches of {batch_size}",
@@ -386,14 +409,16 @@ class ScatteredLightBackground(object):
             if isinstance(input, (np.ndarray, list)) & isinstance(input[0], str):
                 flux_cube = [
                     load_image(input[idx], cutout_size=self.cutout_size)
+                    - self._average_frame
                     for idx in np.arange(l1, l2)
                 ]
             elif isinstance(input, (np.ndarray, list)) & isinstance(
                 input[0], np.ndarray
             ):
-                flux_cube = input[l1:l2]
+                flux_cube = [i - self._average_frame for i in input[l1:l2]]
             else:
                 raise ValueError("Can not parse input.")
+
             if mask_asteroids:
                 w1, w2, j, bk, ast_mask = self._fit_batch(
                     flux_cube,
@@ -454,7 +479,8 @@ class ScatteredLightBackground(object):
                 )
         else:
             raise ValueError("Pass an `xp.ndarray` or a `list`")
-        self._build_masks(flux_cube[test_frame])
+        self._average_frame = np.nanmin(flux_cube, axis=0)
+        self._build_masks(flux_cube[test_frame] - self._average_frame)
         (
             self.weights_basic,
             self.weights_full,
@@ -467,18 +493,20 @@ class ScatteredLightBackground(object):
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
         )
-        self._average_frame = flux_cube[test_frame] - self.model(test_frame)
-        # Mask out the asteroids from the average frame
-        if mask_asteroids:
-            self._average_frame[
-                get_asteroid_mask(
-                    self.sector,
-                    self.camera,
-                    self.ccd,
-                    cutout_size=self.cutout_size,
-                    times=[self.tstart[test_frame]],
-                )
-            ] = np.nanmedian(self._average_frame)
+        # self._average_frame = flux_cube[test_frame] - self.model(test_frame)
+        # # Mask out the asteroids from the average frame
+        # if mask_asteroids:
+        #     self._average_frame[
+        #         get_asteroid_mask(
+        #             self.sector,
+        #             self.camera,
+        #             self.ccd,
+        #             cutout_size=self.cutout_size,
+        #             times=[self.tstart[test_frame]],
+        #         )
+        #     ] = np.nanmedian(self._average_frame)
+        # self._average_frame += min_frame
+
         _package_pca_comps(self)
         return
 
@@ -655,26 +683,7 @@ class ScatteredLightBackground(object):
         b : `scatterbrain.ScatteredLightBackground.ScatteredLightBackground`
             ScatteredLightBackground object
         """
-        if not isinstance(fnames, (list, xp.ndarray)):
-            raise ValueError("Pass an array of file names")
-        if not isinstance(fnames[0], (str)):
-            raise ValueError("Pass an array of strings")
-
-        if sector is None:
-            try:
-                sector = int(fnames[0].split("-s")[1].split("-")[0])
-            except ValueError:
-                raise ValueError("Can not parse file name for sector number")
-        if camera is None:
-            try:
-                camera = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
-            except ValueError:
-                raise ValueError("Can not find a camera number")
-        if ccd is None:
-            try:
-                ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
-            except ValueError:
-                raise ValueError("Can not find a CCD number")
+        fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
 
         blown_out_frames = identify_bad_frames(fnames)
         # make a ScatteredLightBackground object
@@ -718,9 +727,15 @@ class ScatteredLightBackground(object):
                 test_frame = len(fnames) // 2
             else:
                 test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
-        self._build_masks(load_image(fnames[test_frame], cutout_size=cutout_size))
-
         ok = (self.quality.astype(int) & (8192 | quality_mask)) == 0
+        self._average_frame = (
+            get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
+            - 1e-6
+        )
+        self._build_masks(
+            load_image(fnames[test_frame], cutout_size=cutout_size)
+            - self._average_frame
+        )
         w1, w2, j, bk, self.asteroid_mask = self._run_batches(
             fnames[ok],
             self.tstart[ok],
@@ -740,19 +755,21 @@ class ScatteredLightBackground(object):
         self.bkg = np.zeros((len(fnames), bk.shape[1]))
         self.bkg[ok] = bk
         self.bkg[~ok] = np.nan
-        self._average_frame = load_image(
-            fnames[test_frame], cutout_size=cutout_size
-        ) - self.model(test_frame)
-        # Mask out the asteroids from the average frame
-        if mask_asteroids:
-            self._average_frame[
-                get_asteroid_mask(
-                    self.sector,
-                    self.camera,
-                    self.ccd,
-                    cutout_size=self.cutout_size,
-                    times=[self.tstart[test_frame]],
-                )
-            ] = np.nanmedian(self._average_frame)
+        # self._average_frame = load_image(
+        #     fnames[test_frame], cutout_size=cutout_size
+        # ) - self.model(test_frame)
+        # # Mask out the asteroids from the average frame
+        # if mask_asteroids:
+        #     self._average_frame[
+        #         get_asteroid_mask(
+        #             self.sector,
+        #             self.camera,
+        #             self.ccd,
+        #             cutout_size=self.cutout_size,
+        #             times=[self.tstart[test_frame]],
+        #         )
+        #     ] = np.nanmedian(self._average_frame)
+        # self._average_frame += min_frame
+
         _package_pca_comps(self)
         return self

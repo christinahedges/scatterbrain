@@ -9,10 +9,16 @@ from astropy.stats import sigma_clip
 from tqdm import tqdm
 
 from . import PACKAGEDIR
-from .asteroids import get_asteroid_locations
 from .background import ScatteredLightBackground
 from .cupy_numpy_imports import load_image, xp
-from .utils import minmax, _align_with_tpf
+from .utils import (
+    minmax,
+    _align_with_tpf,
+    _validate_inputs,
+    get_asteroid_locations,
+    get_locs,
+    _spline_basis_vector,
+)
 from .version import __version__
 from copy import deepcopy
 
@@ -76,8 +82,8 @@ class StarScene:
             np.arange(len(self.background.tstart)) > self.break_point,
         ]
         self.Xs = [
-            self._get_design_matrix(self.orbit_masks[0]),
-            self._get_design_matrix(self.orbit_masks[1]),
+            self._get_design_matrix(self.orbit_masks[0], bounds=(-0.5, 0)),
+            self._get_design_matrix(self.orbit_masks[1], bounds=(0, 0.5)),
         ]
         self.weights = [
             np.zeros(
@@ -87,6 +93,17 @@ class StarScene:
             np.zeros(
                 (self.Xs[0].shape[1], self.row.shape[0], self.column.shape[0]),
                 np.float32,
+            ),
+        ]
+
+        self.bad_pixels = [
+            np.zeros(
+                (self.row.shape[0], self.column.shape[0]),
+                bool,
+            ),
+            np.zeros(
+                (self.row.shape[0], self.column.shape[0]),
+                bool,
             ),
         ]
         self.tstart = self.background.tstart
@@ -142,22 +159,56 @@ class StarScene:
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
-    def _get_design_matrix(self, mask=None, ncomps=20):
+    def _get_design_matrix(
+        self, mask=None, ncomps=20, degree=2, nknots=20, bounds=(-0.5, 0.5)
+    ):
         """Construct a design matrix from the ScatteredLightBackground object"""
         if mask is None:
             mask = np.ones(self.background.tstart.shape[0], bool)
-        t = (self.background.tstart[mask] - self.background.tstart.mean()) / 30
+        t = (self.background.tstart[mask] - self.background.tstart.mean()) / (
+            self.background.tstart[-1] - self.background.tstart[0]
+        )
+        knots = (
+            xp.linspace(*bounds, nknots + 2)[1:-1] + 1e-10
+        )  # This stops numerical instabilities where x==knot value
+        knots_wbounds = xp.append(
+            xp.append([knots[0]] * (degree - 1), knots), [knots[-1]] * (degree + 2)
+        )
+
+        # 2D sparse matrix, for 2048 pixels
+        As = xp.vstack(
+            [
+                _spline_basis_vector(t, degree, i, knots_wbounds)
+                for i in xp.arange(-1, len(knots_wbounds) - degree - 3)
+            ]
+        ).T
         X = np.hstack(
             [
                 self.background.jitter_pack[mask, :ncomps],
                 self.background.bkg_pack[mask, :ncomps],
-                np.vstack([t ** 0, t, t ** 2]).T,
+                # np.vstack([t ** 0, t, t ** 2]).T,
+                As,
             ]
         )
         return X
 
     @staticmethod
-    def from_tess_images(fnames, sector=None, camera=None, ccd=None, batch_size=512):
+    def exists(sector=None, camera=None, ccd=None, dir=None):
+        for type in ["backdrop", "starscene"]:
+            fname = f"tess{type}_sector{sector}_camera{camera}_ccd{ccd}.fits"
+            if dir is None:
+                dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
+            if dir != "":
+                if not os.path.isdir(dir):
+                    return False
+            if not os.path.isfile(dir + fname):
+                return False
+        return True
+
+    @staticmethod
+    def from_tess_images(
+        fnames, sector=None, camera=None, ccd=None, batch_size=512, plot=False
+    ):
         """Class to remove stars from TESS images
 
         Parameters
@@ -174,30 +225,42 @@ class StarScene:
             This will process the fits images in "cutouts". The larger the cutout,
             the more memory fitting will take. 512 is a sane default.
         """
-        if not isinstance(fnames, (list, xp.ndarray)):
-            raise ValueError("Pass an array of file names")
-        if not isinstance(fnames[0], (str)):
-            raise ValueError("Pass an array of strings")
-
-        if sector is None:
-            try:
-                sector = int(fnames[0].split("-s")[1].split("-")[0])
-            except ValueError:
-                raise ValueError("Can not parse file name for sector number")
-        if camera is None:
-            try:
-                camera = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
-            except ValueError:
-                raise ValueError("Can not find a camera number")
-        if ccd is None:
-            try:
-                ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
-            except ValueError:
-                raise ValueError("Can not find a CCD number")
+        fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
         self = StarScene(sector=sector, camera=camera, ccd=ccd, batch_size=batch_size)
-        return self
         self.fit_model(fnames=fnames, batch_size=batch_size)
+        if plot:
+            fig = self.diagnose(fnames)
+            return self, fig
         return self
+
+    def diagnose(self, fnames, npix=512, ntimes=6):
+        import matplotlib.pyplot as plt
+
+        row = np.arange(1024 - npix // 2, 1024 + npix // 2)
+        column = np.arange(1024 - npix // 2, 1024 + npix // 2)
+        tdxs = np.linspace(0, self.shape[0], ntimes + 2, dtype=int)[1:-1]
+        fig, ax = plt.subplots(ntimes, 3, figsize=(4 * 3, 4 * ntimes))
+        for jdx, tdx in enumerate(tdxs):
+            while self.quality[tdx] != 0:
+                tdx += 1
+            dat = load_image(fnames[tdx])
+            v = np.nanpercentile(dat, (5, 95))
+            ax[jdx, 0].imshow(dat[row][:, column], vmin=v[0], vmax=v[1])
+            ax[jdx, 0].set_ylabel(f"{self.tstart[tdx]} BTJD")
+            ax[jdx, 1].imshow(
+                self.model(row, column, time_indices=tdx)[0], vmin=v[0], vmax=v[1]
+            )
+            ax[jdx, 2].imshow(
+                dat[row][:, column] - self.model(row, column, time_indices=tdx)[0],
+                vmin=-5,
+                vmax=5,
+            )
+            for idx, title in enumerate(["Data", "Model", "Residuals"]):
+                if jdx == 0:
+                    ax[jdx, idx].set(title=title)
+                ax[jdx, idx].set(xticks=[], yticks=[])
+        plt.tight_layout()
+        return fig
 
     @property
     def locs(self):
@@ -205,17 +268,7 @@ class StarScene:
 
         [[mininmum row, maxmimum row], [minimum column, maximum column]]
         """
-        locs = []
-        nbatches = 2048 // self.batch_size
-        for bdx1 in range(nbatches):
-            for bdx2 in range(nbatches):
-                locs.append(
-                    [
-                        [self.batch_size * bdx1, self.batch_size * (bdx1 + 1)],
-                        [self.batch_size * bdx2, self.batch_size * (bdx2 + 1)],
-                    ]
-                )
-        return locs
+        return get_locs(2048, 512)
 
     def load(self, input, dir=None):
         """
@@ -268,6 +321,14 @@ class StarScene:
                 :, self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
             ],
         ]
+        self.bad_pixels = [
+            fitsio.FITS(dir + fname)[3][
+                self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
+            ].astype(bool),
+            fitsio.FITS(dir + fname)[4][
+                self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
+            ].astype(bool),
+        ]
         return self
 
     @staticmethod
@@ -285,7 +346,9 @@ class StarScene:
         hdu0 = self.hdu0
         hdu1 = fits.ImageHDU(np.asarray(self.weights[0]), name="ORBIT1")
         hdu2 = fits.ImageHDU(np.asarray(self.weights[1]), name="ORBIT2")
-        hdul = fits.HDUList([hdu0, hdu1, hdu2])
+        hdu3 = fits.ImageHDU(self.bad_pixels[0].astype(int), name="BADPIX1")
+        hdu4 = fits.ImageHDU(self.bad_pixels[1].astype(int), name="BADPIX2")
+        hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4])
         return hdul
 
     def save(self, output_dir=None, overwrite=False):
@@ -418,17 +481,27 @@ class StarScene:
             X = self.Xs[orbit - 1][
                 self.background.quality[self.orbit_masks[orbit - 1]] == 0
             ]
-            import pdb
+            prior_sigma = np.ones(X.shape[1]) * 1e8
+            ws = np.linalg.solve(
+                X.T.dot(X) + np.diag(1 / prior_sigma ** 2), X.T.dot(y.reshape(s))
+            )
 
-            pdb.set_trace()
+            res = y - X.dot(ws).reshape(y.shape)
+            m = sigma_clip(res, sigma_upper=5, sigma_lower=1e10, axis=(1, 2)).mask
+            self.bad_pixels[orbit - 1][loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]] = (
+                m.sum(axis=0) / y.shape[0]
+            ) >= 0.05
 
-            ws = np.linalg.solve(X.T.dot(X), X.T.dot(y.reshape(s)))
             if iter:
-                res = y - X.dot(ws).reshape(y.shape)
+                # res[
+                #     sigma_clip(
+                #         np.abs(res).sum(axis=(1, 2)), sigma_upper=5, sigma_lower=1e10
+                #     ).mask
+                # ] = 0
                 res[
-                    sigma_clip(
-                        np.abs(res).sum(axis=(1, 2)), sigma_upper=5, sigma_lower=1e10
-                    ).mask
+                    self.bad_pixels[orbit - 1][
+                        loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]
+                    ]
                 ] = 0
                 for idx in range(5):
                     k = res == np.max(res, axis=0)
@@ -452,7 +525,7 @@ class StarScene:
         for loc in tqdm(self.locs):
             self._fill_weights_block(fnames=fnames, loc=loc)
 
-    def model(self, row=None, column=None, time_indices=None):
+    def model(self, row=None, column=None, time_indices=None, mask_bad_pixels=True):
         """Returns a model for a given row and column.
 
         Parameters
@@ -478,34 +551,53 @@ class StarScene:
         if isinstance(time_indices, int):
             time_indices = [time_indices]
             single_frame = True
-        if not (
-            (self.background.row == row).all()
-            and (self.background.column == column).all()
+        if (len(row) != len(self.background.row)) | (
+            len(column) != len(self.background.column)
         ):
             self._load_background(row=row, column=column)
-        r = np.where(np.in1d(self.weight_row, row))[0]
-        c = np.where(np.in1d(self.weight_column, column))[0]
+        else:
+            if not (
+                (self.background.row == row).all()
+                and (self.background.column == column).all()
+            ):
+                self._load_background(row=row, column=column)
+        # r = np.where(np.in1d(self.weight_row, row))[0]
+        # c = np.where(np.in1d(self.weight_column, column))[0]
+        r, c = row, column
         w1 = self.weights[0][:, r][:, :, c].reshape(
             (self.weights[0].shape[0], row.shape[0] * column.shape[0])
         )
         w2 = self.weights[1][:, r][:, :, c].reshape(
             (self.weights[1].shape[0], row.shape[0] * column.shape[0])
         )
+
+        bp1 = self.bad_pixels[0][r][:, c].reshape((row.shape[0] * column.shape[0]))
+        bp2 = self.bad_pixels[1][r][:, c].reshape((row.shape[0] * column.shape[0]))
         xmask1 = np.in1d(np.where(self.orbit_masks[0])[0], time_indices)
         xmask2 = np.in1d(np.where(self.orbit_masks[1])[0], time_indices)
-        model = np.vstack([self.Xs[0][xmask1].dot(w1), self.Xs[1][xmask2].dot(w2)])
+        m1, m2 = self.Xs[0][xmask1].dot(w1), self.Xs[1][xmask2].dot(w2)
+        m1[:, bp1] = np.nan
+        m2[:, bp2] = np.nan
+        model = np.vstack([m1, m2])
         model = model.reshape((model.shape[0], row.shape[0], column.shape[0]))
         background = self.background.model(time_indices)
         if single_frame:
             return model[0] + self.background.average_frame + background[0]
         return model + self.background.average_frame + background
 
-    def model_moving(self, row3d, column3d, star_model=True):
+    def model_moving(self, row3d, column3d, star_model=True, time_indices=None):
+        if time_indices is None:
+            time_indices = np.arange(self.shape[0])
         if (row3d.shape[0] != self.shape[0]) | (column3d.shape[0] != self.shape[0]):
             raise ValueError("Pass Row and Column positions for all times. ")
-        model = np.zeros((row3d.shape[0], row3d.shape[1], column3d.shape[1]))
+        model = np.zeros((row3d.shape[0], row3d.shape[1], column3d.shape[1])) * np.nan
         for orbit in [0, 1]:
-            mask = self.orbit_masks[orbit]
+            # mask = self.orbit_masks[orbit]
+            mask = self.orbit_masks[orbit] & np.in1d(
+                np.arange(self.shape[0]), time_indices
+            )
+            if mask.sum() == 0:
+                continue
             s = (self.weights[orbit].shape[0], row3d.shape[1] * column3d.shape[1])
             r1, r2 = row3d[mask].min(), row3d[mask].max() + 1
             c1, c2 = column3d[mask].min(), column3d[mask].max() + 1

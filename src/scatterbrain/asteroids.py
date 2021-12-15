@@ -4,10 +4,484 @@ import pickle
 import numpy as np
 import pandas as pd
 from astropy.time import Time
+import astropy.units as u
+from scipy.interpolate import interp1d
+from glob import glob
 from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .utils import minmax
+
+from dataclasses import dataclass
+from typing import Optional
+
+from .scene import StarScene
+from .utils import _validate_inputs
+import fitsio
+import os
+from astropy.stats import sigma_clip
+import lightkurve as lk
+from scipy.ndimage import label
+
+import tess_ephem as te
+
+from matplotlib import patches
+import matplotlib.pyplot as plt
+
+sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))
+
+
+@dataclass
+class AsteroidMetaCollection:
+    name: str
+    sectors: list
+    cameras: list
+    ccds: list
+    aper: Optional = 7
+
+    def __post_init__(self):
+        self.asteroids = []
+        last_sector = 0
+        for sector, camera, ccd in zip(self.sectors, self.cameras, self.ccds):
+            if sector not in sector_times.keys():
+                continue
+            if last_sector != sector:
+                t = Time(sector_times[sector] + 2457000, format="jd")
+                t += np.median(np.diff(t.value)) / 2
+                asteroid = te.ephem(self.name, sector=sector, time=t, verbose=True)
+                last_sector = sector
+            k = (asteroid.camera == camera) & (asteroid.ccd == ccd)
+            am = AsteroidMeta.from_dataframe(
+                asteroid[k].join(pd.DataFrame(index=t), how="right"),
+                name=self.name,
+                aper=self.aper,
+                sector=sector,
+                camera=camera,
+                ccd=ccd,
+            )
+            if am.mask.any():
+                self.asteroids.append(am)
+        if len(self.asteroids) == 0:
+            raise ValueError(f"No valid asteroid data for sectors {self.sectors}")
+
+    def __getitem__(self, key):
+        return self.asteroids[key]
+
+    def __len__(self):
+        return len(self.asteroids)
+
+    @staticmethod
+    def from_name(name, sector=None, aper=7):
+        if sector is not None:
+            t = Time(sector_times[sector] + 2457000, format="jd")
+            t += np.median(np.diff(t.value)) / 2
+            ephem = te.ephem(name, time=t[::12])
+        else:
+            ephem = te.ephem(name, interpolation_step="6H")
+        sectors, cameras, ccds = np.asarray(
+            ephem.groupby(["sector", "camera", "ccd"])
+            .first()
+            .reset_index()[["sector", "camera", "ccd"]]
+        ).T
+        return AsteroidMetaCollection(name, sectors, cameras, ccds, aper=aper)
+
+    def __repr__(self):
+        return f"AsteroidMetaCollection: {self.name} ({len(self)} objects)"
+
+
+@dataclass
+class AsteroidMeta:
+    row: list
+    col: list
+    vmag: list
+    time: list
+    name: Optional = None
+    aper: Optional = 7
+    sun_distance: Optional = None
+    obs_distance: Optional = None
+    phase_angle: Optional = None
+    sector: Optional = None
+    camera: Optional = None
+    ccd: Optional = None
+
+    def __repr__(self):
+        repr = f"AsteroidMeta name:{self.name}"
+        for key in ["sector", "camera", "ccd"]:
+            if getattr(self, key) is not None:
+                repr = f"{repr} {key}:{getattr(self, key)}"
+        return repr
+
+    @property
+    def speed(self):
+        if self.mask.any():
+            return (
+                np.abs(
+                    np.gradient(
+                        np.asarray(np.hypot(self.row, self.col))[self.mask],
+                        self.time[self.mask],
+                    )
+                )
+                * u.pixel
+                / u.day
+            )
+        else:
+            return np.atleast_1d(0) * u.pixel / u.day
+
+    @property
+    def lag(self):
+        return (8 * u.pixel) / self.speed.min()
+
+    @property
+    def _fr(self):
+        return interp1d(
+            self.time[self.mask],
+            np.asarray(self.row[self.mask]),
+            bounds_error=False,
+            fill_value="extrapolate",
+        )
+
+    @property
+    def _fc(self):
+        return interp1d(
+            self.time[self.mask],
+            np.asarray(self.col[self.mask]),
+            bounds_error=False,
+            fill_value="extrapolate",
+        )
+
+    def __post_init__(self):
+        self.mask = (
+            (self.row >= self.aper // 2)
+            & (self.col >= self.aper // 2)
+            & (self.row < (2048 - self.aper // 2))
+            & (self.col < (2048 - self.aper // 2))
+        )
+        if not self.mask.any():
+            self.xlag, self.x, self.xlead = (
+                (self.row.astype(int), self.col.astype(int)),
+                (self.row.astype(int), self.col.astype(int)),
+                (self.row.astype(int), self.col.astype(int)),
+            )
+        else:
+            self.xlag, self.x, self.xlead = [
+                (
+                    self._fr(self.time + l).astype(int),
+                    self._fc(self.time + l).astype(int),
+                )
+                for l in [-self.lag.value, 0, self.lag.value]
+            ]
+            self.mask &= (
+                (self.xlag[0] >= self.aper // 2)
+                & (self.xlag[1] >= self.aper // 2)
+                & (self.xlag[0] < (2048 - self.aper // 2))
+                & (self.xlag[1] < (2048 - self.aper // 2))
+            )
+            self.mask &= (
+                (self.xlead[0] >= self.aper // 2)
+                & (self.xlead[1] >= self.aper // 2)
+                & (self.xlead[0] < (2048 - self.aper // 2))
+                & (self.xlead[1] < (2048 - self.aper // 2))
+            )
+
+    @staticmethod
+    def from_dataframe(df, name=None, sector=None, camera=None, ccd=None, aper=7):
+        return AsteroidMeta(
+            row=np.asarray(df.row) - 0.5,
+            col=np.asarray(df.column) - 45.5,
+            vmag=np.asarray(df.vmag),
+            sun_distance=np.asarray(df["sun_distance"]),
+            obs_distance=np.asarray(df["obs_distance"]),
+            phase_angle=np.asarray(df["phase_angle"]),
+            time=np.asarray([i.jd for i in df.index]),
+            sector=sector,
+            camera=camera,
+            ccd=ccd,
+            aper=aper,
+            name=name,
+        )
+
+
+@dataclass
+class AsteroidExtractor:
+    """Class to get asteroids out of tess data"""
+
+    dir: str
+    sector: int
+
+    def __post_init__(self):
+        """Class to get asteroids from TESS data
+
+        Parameters
+        ----------
+        fnames: list of str
+            Filenames of the TESS"""
+
+        if not os.path.isdir(self.dir):
+            raise ValueError("No such directory")
+        if not os.path.isdir(f"{self.dir}/sector{self.sector:02}"):
+            raise ValueError("No such sector")
+
+        self.scenes, self.fnames = {}, {}
+        for camera in np.arange(1, 5):
+            for ccd in np.arange(1, 5):
+                if StarScene.exists(self.sector, camera, ccd):
+                    if camera not in self.scenes.keys():
+                        self.scenes[camera] = {}
+                    self.scenes[camera][ccd] = StarScene.from_disk(
+                        self.sector, camera, ccd
+                    )
+                    if os.path.isdir(
+                        f"{self.dir}/sector{self.sector:02}/camera{camera:02}/ccd{ccd:02}"
+                    ):
+                        if camera not in self.fnames.keys():
+                            self.fnames[camera] = {}
+                        self.fnames[camera][ccd] = np.sort(
+                            glob(
+                                f"{self.dir}/sector{self.sector:02}/camera{camera:02}/ccd{ccd:02}/*_ffic.fits"
+                            )
+                        )
+                    else:
+                        raise ValueError(
+                            f"Please provide fits files for camera {camera} ccd {ccd}"
+                        )
+        self.time = (
+            sector_times[self.sector]
+            + np.median(np.diff(sector_times[self.sector])) / 2
+        ) + 2457000
+
+    def __repr__(self):
+        return f"AsteroidExtractor Sector {self.sector}"
+
+    def get_asteroid_arrays(self, ast, aper=21):
+        fnames = self.fnames[ast.camera][ast.ccd]
+        ar = np.zeros((len(fnames), aper, aper, 3)) * np.nan
+        er = np.zeros((len(fnames), aper, aper, 3)) * np.nan
+        for idx, x in enumerate([ast.xlag, ast.x, ast.xlead]):
+            r, c = x
+            for tdx in range(len(fnames)):
+                if (
+                    (r[tdx] >= aper // 2)
+                    & (c[tdx] >= aper // 2)
+                    & (r[tdx] < (2048 + aper // 2 + 1))
+                    & (c[tdx] < (2048 + aper // 2 + 1))
+                ):
+                    ar[tdx, :, :, idx] = fitsio.FITS(fnames[tdx])[1][
+                        r[tdx] - aper // 2 : r[tdx] + aper // 2 + 1,
+                        44 + c[tdx] - aper // 2 : 44 + c[tdx] + aper // 2 + 1,
+                    ]
+                    er[tdx, :, :, idx] = fitsio.FITS(fnames[tdx])[2][
+                        r[tdx] - aper // 2 : r[tdx] + aper // 2 + 1,
+                        44 + c[tdx] - aper // 2 : 44 + c[tdx] + aper // 2 + 1,
+                    ]
+        return ar, er
+
+    def get_asteroid_lightcurve(self, name, aper=21, plot=False, quality_mask=175):
+        collection = AsteroidMetaCollection.from_name(
+            name, sector=self.sector, aper=aper
+        )
+        R, C = np.mgrid[:aper, :aper]
+        R -= aper // 2
+        C -= aper // 2
+
+        lcs = []
+        for ast in collection:
+            ast.mask &= (
+                self.scenes[ast.camera][ast.ccd].quality.astype(int)
+                & (8192 | quality_mask)
+            ) == 0
+
+            ar, er = self.get_asteroid_arrays(ast, aper=aper)
+
+            model = np.zeros(ar.shape)
+            for idx, x in enumerate([ast.xlag, ast.x, ast.xlead]):
+                r, c = x
+                row3d = np.zeros((r.shape[0], aper), int)
+                row3d = (
+                    np.asarray(r).astype(int)
+                    + np.arange(-aper // 2 + 1, aper // 2 + 1)[:, None]
+                ).T
+                column3d = np.zeros((r.shape[0], aper), int)
+                column3d = (
+                    np.asarray(c).astype(int)
+                    + np.arange(-aper // 2 + 1, aper // 2 + 1)[:, None]
+                ).T
+                model[:, :, :, idx] = self.scenes[ast.camera][ast.ccd].model_moving(
+                    row3d, column3d, time_indices=np.where(ast.mask)[0]
+                )
+
+            # Get aperture
+            aperture_mask = self._get_aperture_mask(
+                ar[:, :, :, 1] - model[:, :, :, 1], er[:, :, :, 1]
+            )
+
+            # Get photometery
+            flux = (ar[:, aperture_mask, 1] - model[:, aperture_mask, 1]).sum(axis=1)[
+                ast.mask
+            ]
+            flux_err = (er[:, aperture_mask, 1] ** 2).sum(axis=1)[ast.mask] ** 0.5
+
+            # Interpolate leading/lagging
+            l1 = interp1d(
+                ast.time[ast.mask] - ast.lag.value,
+                (ar[:, aperture_mask, 0] - model[:, aperture_mask, 0]).sum(axis=1)[
+                    ast.mask
+                ],
+                fill_value="extrapolate",
+                bounds_error=False,
+            )(ast.time[ast.mask])
+            l2 = interp1d(
+                ast.time[ast.mask] + ast.lag.value,
+                (ar[:, aperture_mask, 2] - model[:, aperture_mask, 2]).sum(axis=1)[
+                    ast.mask
+                ],
+                fill_value="extrapolate",
+                bounds_error=False,
+            )(ast.time[ast.mask])
+
+            # Mask out bad cadences based on leading and lagging
+            cadence_mask = np.ones(ast.mask.sum(), bool)
+            k = np.isfinite(np.nansum(np.vstack([flux, l1, l2]), axis=0))
+
+            for dat in [l1, l2, np.hypot(l1, l2), l1 / l2]:
+                cadence_mask[k] &= ~sigma_clip(dat[k]).mask
+                cadence_mask[k] &= ~sigma_clip(
+                    np.gradient(dat[k], ast.time[ast.mask][k])
+                ).mask
+
+            # These might help users
+            xcent = np.average(
+                R[aperture_mask][None, :] * np.ones((ar.shape[0], 1)),
+                weights=(ar[:, aperture_mask, 1] - model[:, aperture_mask, 1]),
+                axis=1,
+            )
+            ycent = np.average(
+                C[aperture_mask][None, :] * np.ones((ar.shape[0], 1)),
+                weights=(ar[:, aperture_mask, 1] - model[:, aperture_mask, 1]),
+                axis=1,
+            )
+
+            flux_corr = 10 ** (
+                (ast.vmag[ast.mask] - np.median(ast.vmag[ast.mask])) * -0.4
+            )
+
+            # Package
+            lc = lk.LightCurve(
+                time=self.time[ast.mask][cadence_mask],
+                flux=(flux / flux_corr)[cadence_mask],
+                flux_err=flux_err[cadence_mask],
+                targetid=ast.name,
+                meta={
+                    "LABEL": ast.name,
+                    "MISSION": "TESS",
+                    "TELESCOP": "TESS",
+                    "SECTOR": ast.sector,
+                    "TARGETID": ast.name,
+                },
+            )
+
+            central_pixel = [aper // 2, aper // 2]
+            lc["central_pixel"] = (
+                ar[:, central_pixel[0], central_pixel[1], 1]
+                - model[:, central_pixel[0], central_pixel[1], 1]
+            )[ast.mask][cadence_mask]
+            lc["xcentroid"] = xcent[ast.mask][cadence_mask]
+            lc["ycentroid"] = ycent[ast.mask][cadence_mask]
+            lc["ephem_row"] = ast.row[ast.mask][cadence_mask]
+            lc["ephem_col"] = ast.col[ast.mask][cadence_mask]
+            lc["vmag"] = ast.vmag[ast.mask][cadence_mask]
+            lc["sun_distance"] = ast.sun_distance[ast.mask][cadence_mask]
+            lc["obs_distance"] = ast.obs_distance[ast.mask][cadence_mask]
+            lc["phase_angle"] = ast.phase_angle[ast.mask][cadence_mask]
+            lc["flux_corr"] = flux_corr[cadence_mask]
+            lc["camera"] = np.zeros(cadence_mask.sum(), dtype=int) + ast.camera
+            lc["ccd"] = np.zeros(cadence_mask.sum(), dtype=int) + ast.ccd
+            lc["l1"] = l1[cadence_mask]
+            lc["l2"] = l2[cadence_mask]
+
+            lcs.append(self._correct_lc(lc.remove_nans()))
+        if len(lcs) == 0:
+            return lk.LightCurve(time=[], flux=[])
+        lc, thumb = (
+            lk.LightCurveCollection(lcs).stitch(lambda x: x),
+            (np.nanmedian(ar[:, :, :, 1] - model[:, :, :, 1], axis=0)),
+        )
+        if plot:
+            ax = _plot_asteroid(lc, thumb, aperture_mask)
+        return (
+            lc,
+            thumb,
+            aperture_mask,
+            collection,
+        )
+
+    def _correct_lc(self, lc):
+
+        # Remove outliers in the image centroids
+        if len(lc.flux) > 10:
+            r, c = lc.ephem_row.value % 1, lc.ephem_col.value % 1
+            poly = np.vstack(
+                [(lc.time.value - np.mean(lc.time.value)) ** idx for idx in range(4)]
+            ).T
+            A = np.hstack(
+                [
+                    poly,
+                    r[:, None],
+                    (r * c)[:, None],
+                ]
+            )
+            xcent_corr = lc.xcentroid.value - A.dot(
+                np.linalg.solve(A.T.dot(A), A.T.dot(lc.xcentroid.value))
+            )
+            A = np.hstack(
+                [
+                    poly,
+                    c[:, None],
+                    (r * c)[:, None],
+                ]
+            )
+            ycent_corr = lc.ycentroid.value - A.dot(
+                np.linalg.solve(A.T.dot(A), A.T.dot(lc.ycentroid.value))
+            )
+            cent_corr = np.hypot(
+                xcent_corr - xcent_corr.min(), ycent_corr - ycent_corr.min()
+            )
+            nknots = int((lc.time.value[-1] - lc.time.value[0]) / 0.75)
+            if nknots > 3:
+                dm = lk.designmatrix.create_spline_matrix(
+                    lc.time.value - np.mean(lc.time.value), n_knots=nknots
+                )
+            else:
+                dm = lk.DesignMatrix(poly)
+            r = lk.RegressionCorrector(
+                lk.LightCurve(time=lc.time.value, flux=cent_corr, targetid="cent")
+            )
+            _ = r.correct(dm, sigma=3)
+            outliers = r.outlier_mask
+            outliers |= np.gradient(r.outlier_mask.astype(float)) != 0
+            lc = lc[~outliers]
+        return lc
+
+    def _get_aperture_mask(self, ar, er, sigma=4):
+        e = (np.nansum(er ** 2, axis=0) ** 0.5) / er.shape[0]
+        thumb = np.nanmedian(ar, axis=0) / e
+        aperture_mask = (
+            thumb > np.hstack([thumb[thumb < 0], -thumb[thumb < 0]]).std() * sigma
+        )
+        if not aperture_mask[ar.shape[1] // 2, ar.shape[2] // 2]:
+            raise ValueError("Can not find asteroid")
+
+        # This is taken from lightkurve's create_threshold_mask
+        labels = label(aperture_mask)[0]
+        # For all pixels above threshold, compute distance to reference pixel:
+        label_args = np.argwhere(labels > 0)
+        distances = [
+            np.hypot(crd[0], crd[1])
+            for crd in label_args - np.array([ar.shape[1] // 2, ar.shape[2] // 2])
+        ]
+        # Which label corresponds to the closest pixel?
+        closest_arg = label_args[np.argmin(distances)]
+        closest_label = labels[closest_arg[0], closest_arg[1]]
+        return labels == closest_label
 
 
 def get_ffi_times():
@@ -42,137 +516,30 @@ def get_ffi_times():
     pickle.dump(time_dict, open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "wb"))
 
 
-def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
-    """Get files for each sector containing asteroid locations in the image."""
-    import os
-
-    import tess_ephem as te
-
-    sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))
-    df_raw = pd.read_csv(catalog_fname, low_memory=False)
-    for sector in np.atleast_1d(sectors):
-        df = (
-            df_raw[
-                (df_raw.max_Vmag != 0)
-                & (df_raw.sector == sector)
-                & (df_raw.max_Vmag <= magnitude_limit)
-            ]
-            .drop_duplicates("pdes")
-            .reset_index(drop=True)
-        )
-        t = Time(sector_times[sector] + 2457000, format="jd")
-        t += np.median(np.diff(t.value)) / 2
-
-        asteroid_df = pd.DataFrame(
-            columns=np.hstack(
-                [
-                    "camera",
-                    "ccd",
-                    "vmag",
-                    [f"{i}r" for i in np.arange(len(t))],
-                    [f"{i}c" for i in np.arange(len(t))],
-                ]
-            ),
-            dtype=np.int16,
-        )
-        names = []
-        jdx = 0
-        for idx, d in tqdm(df.iterrows(), total=len(df), desc=f"Sector {sector}"):
-            ast = te.ephem(
-                d.pdes, interpolation_step="6H", time=t, sector=sector, verbose=True
-            )[["sector", "camera", "ccd", "column", "row", "vmag"]]
-
-            ast.replace(np.nan, -1, inplace=True)
-            for camera in ast.camera.unique():
-                for ccd in ast[ast.camera == camera].ccd.unique():
-                    j = np.asarray((ast.camera == camera) & (ast.ccd == ccd))
-                    k = np.in1d(t.jd, [i.jd for i in ast[j].index])
-                    row, col = np.zeros((2, k.shape[0])) - 1
-                    row[k] = ast[j].row
-                    col[k] = ast[j].column
-                    names.append(d.pdes)
-                    if (ast["vmag"] > 0).sum() == 0:
-                        vmagmean = -99
-                    else:
-                        vmagmean = np.round(ast["vmag"][ast["vmag"] > 0].mean())
-                    asteroid_df.loc[jdx] = np.hstack(
-                        [camera, ccd, vmagmean, row, col]
-                    ).astype(np.int16)
-                    jdx += 1
-        path = f"{PACKAGEDIR}/data/sector{sector:03}/"
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        if os.path.isfile(f"{path}bright_asteroids.hdf"):
-            os.remove(f"{path}bright_asteroids.hdf")
-        asteroid_df.to_hdf(
-            f"{path}bright_asteroids.hdf",
-            **{"key": f"asteroid_sector{sector}", "format": "fixed", "complevel": 9},
-        )
-
-
-def get_asteroid_locations(sector=1, camera=1, ccd=1, times=None):
-    """Get the row and column positions of asteroids in sector, camera, ccd
-
-    Returns
-    -------
-
-    row:
-
-    col:
-    """
-    df = pd.read_hdf(f"{PACKAGEDIR}/data/sector{sector:03}/bright_asteroids.hdf")
-    df = df[(df.camera == camera) & (df.ccd == ccd)].reset_index(drop=True)
-
-    vmag = np.asarray(df["vmag"])
-    row = np.asarray(df)[:, 2:][
-        :, np.asarray([d.endswith("r") for d in df.columns[2:]])
-    ]
-    col = (
-        np.asarray(df)[:, 2:][:, np.asarray([d.endswith("c") for d in df.columns[2:]])]
-        - 44
-    )
-    if times is None:
-        time_mask = np.ones(row.shape[1], bool)
-    else:
-        sector_times = pickle.load(
-            open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb")
-        )[sector]
-        time_mask = np.any(
-            [np.isclose(sector_times, t, atol=1e-6) for t in times], axis=0
-        )
-
-    return vmag, row[:, time_mask], col[:, time_mask]
-
-
-def get_asteroid_mask(sector=1, camera=1, ccd=1, cutout_size=2048, times=None):
-    """Load a saved bright asteroid file as a 2048x2048 pixel mask.
-
-    Use time mask to specify which times to use.
-    """
-
-    mask = np.zeros((cutout_size, cutout_size), bool)
-
-    vmag, row, col = get_asteroid_locations(
-        sector=sector, camera=camera, ccd=ccd, times=times
-    )
-
-    def func(row, col, ap=3):
-        X, Y = np.mgrid[-ap : ap + 1, -ap : ap + 1]
-        aper = np.hypot(X, Y) <= ap
-        aper_locs = np.asarray(np.where(aper)).T - ap
-        for idx in range(row.shape[0]):
-            k = (
-                (row[idx] >= 0)
-                & (col[idx] > 0)
-                & (row[idx] < cutout_size)
-                & (col[idx] < cutout_size)
-            )
-            for loc in aper_locs:
-                l1 = minmax(row[idx, k] + loc[0], shape=cutout_size)
-                l2 = minmax(col[idx, k] + loc[1], shape=cutout_size)
-                mask[l1, l2] = True
-
-    func(row[vmag >= 14], col[vmag >= 14], ap=5)
-    func(row[(vmag < 14) & (vmag >= 11)], col[(vmag < 14) & (vmag >= 11)], ap=7)
-    func(row[(vmag < 11)], col[(vmag < 11)], ap=9)
-    return mask
+def _plot_asteroid(lc, thumbnail, aperture_mask):
+    with plt.style.context("seaborn-white"):
+        fig = plt.figure(figsize=(15, 3))
+        ax = plt.subplot2grid((1, 4), (0, 0), colspan=3, fig=fig)
+        lc.remove_outliers(10).errorbar(ax=ax, c="k", ls="-")
+        ax.set(xlabel="Time [JD]", ylabel="Flux [counts]")
+        ax = plt.subplot2grid((1, 4), (0, 3), fig=fig)
+        ax.set(xticks=[], yticks=[], title=lc.label)
+        std = np.hstack([thumbnail[thumbnail < 0], -thumbnail[thumbnail < 0]]).std()
+        im = ax.imshow(thumbnail / std, vmin=0, vmax=10, cmap="viridis")
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label("Counts")
+        # Overlay the aperture mask if given
+        for i in range(thumbnail.shape[0]):
+            for j in range(thumbnail.shape[1]):
+                if aperture_mask[i, j]:
+                    rect = patches.Rectangle(
+                        xy=(j - 0.5, i - 0.5),
+                        width=1,
+                        height=1,
+                        color="red",
+                        fill=False,
+                        hatch="/////",
+                        alpha=0.3,
+                    )
+                    ax.add_patch(rect)
+        return ax

@@ -11,3 +11,10 @@
 * Add files on Zenodo so we can load them if they aren't local
 * Add a TESSCut Corrector class
 * Consider swapping third order polynomial in StarScene to a low order spline for nicer priors and better variability removal?
+* Add docs to asteroid functions
+* Add some tutorials for different use cases
+* Come up with some diagnostics for backdrops/starscenes
+* Check starscenes for multiple sectors
+* Run on supercomputer
+* Investigate using GPUs to run on super computer
+* Increase the asteroid masking depth to mask fainter asteroids?
