@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
 
@@ -12,15 +13,14 @@ from . import PACKAGEDIR
 from .background import ScatteredLightBackground
 from .cupy_numpy_imports import load_image, xp
 from .utils import (
-    minmax,
     _align_with_tpf,
+    _spline_basis_vector,
     _validate_inputs,
     get_asteroid_locations,
     get_locs,
-    _spline_basis_vector,
+    minmax,
 )
 from .version import __version__
-from copy import deepcopy
 
 
 @dataclass

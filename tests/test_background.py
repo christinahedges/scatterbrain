@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from scatterbrain import PACKAGEDIR, ScatteredLightBackground, __version__
@@ -57,7 +58,7 @@ def test_background_cutout():
     with pytest.raises(ValueError):
         b = b[:1]
     b = ScatteredLightBackground.from_tess_images(
-        [fname, fname], sector=1, batch_size=2, cutout_size=128, quality_mask=0
+        [fname, fname], sector=1, batch_size=2, cutout_size=128, quality_bitmask=0
     )
     b = b[:1]
     assert len(b.weights_full) == 1

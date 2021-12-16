@@ -1,14 +1,13 @@
 import numpy as np
 
 from scatterbrain import sector_times
-from scatterbrain.asteroids import get_asteroid_locations, get_asteroid_mask
+from scatterbrain.utils import get_asteroid_locations, get_asteroid_mask
 
 
 def test_asteroid_locs():
     vmag, row, col = get_asteroid_locations(1, 1, 3)
     assert len(row.shape) == 2
     assert row.shape == col.shape
-    assert isinstance(row[0, 0], np.int16)
     assert row.shape[1] == len(sector_times[1])
 
 

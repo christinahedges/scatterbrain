@@ -1,33 +1,28 @@
 """Tools that require the internet, and get asteroids"""
+import os
 import pickle
 import warnings
-from astropy.utils.exceptions import AstropyWarning
+from dataclasses import dataclass
+from glob import glob
+from typing import Optional
+
+import astropy.units as u
+import fitsio
+import lightkurve as lk
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tess_ephem as te
+from astropy.stats import sigma_clip
 from astropy.time import Time
-import astropy.units as u
+from astropy.utils.exceptions import AstropyWarning
+from matplotlib import patches
 from scipy.interpolate import interp1d
-from glob import glob
+from scipy.ndimage import label
 from tqdm import tqdm
 
 from . import PACKAGEDIR
-from .utils import minmax
-
-from dataclasses import dataclass
-from typing import Optional
-
 from .scene import StarScene
-from .utils import _validate_inputs
-import fitsio
-import os
-from astropy.stats import sigma_clip
-import lightkurve as lk
-from scipy.ndimage import label
-
-import tess_ephem as te
-
-from matplotlib import patches
-import matplotlib.pyplot as plt
 
 sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))
 
@@ -315,6 +310,12 @@ class AsteroidExtractor:
                 ar[:, :, :, 1] - model[:, :, :, 1], er[:, :, :, 1]
             )
 
+            bkg = (
+                np.nanmedian(
+                    ar[:, ~aperture_mask, :] - model[:, ~aperture_mask, :], axis=1
+                )
+            )[:, None, None, :]
+            ar -= bkg
             # Get photometery
             flux = (ar[:, aperture_mask, 1] - model[:, aperture_mask, 1]).sum(axis=1)[
                 ast.mask
@@ -412,6 +413,7 @@ class AsteroidExtractor:
         )
         if plot:
             ax = _plot_asteroid(lc, thumb, aperture_mask)
+            return lc, ax
         # return (lc, thumb, aperture_mask, collection, model)
         return lc
 

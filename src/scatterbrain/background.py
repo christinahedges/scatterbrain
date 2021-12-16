@@ -16,12 +16,12 @@ from .designmatrix import (
 from .utils import (
     _align_with_tpf,
     _package_pca_comps,
-    get_sat_mask,
-    get_star_mask,
-    identify_bad_frames,
     _validate_inputs,
     get_asteroid_mask,
     get_min_image_from_filenames,
+    get_sat_mask,
+    get_star_mask,
+    identify_bad_frames,
 )
 from .version import __version__
 

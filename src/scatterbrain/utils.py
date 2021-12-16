@@ -1,18 +1,21 @@
 """basic utility functions"""
+import warnings
+
 import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from astropy.convolution import Gaussian1DKernel, convolve
-from astropy.stats import sigma_clipped_stats, sigma_clip
+from astropy.stats import sigma_clip, sigma_clipped_stats
+from astropy.time import Time
+from astropy.utils.exceptions import AstropyWarning
 from fbpca import pca
 from matplotlib import animation
 from scipy.signal import medfilt
+from tqdm import tqdm
 
-from .cupy_numpy_imports import xp, load_image
 from . import PACKAGEDIR
-import pandas as pd
-import warnings
-from astropy.utils.exceptions import AstropyWarning
+from .cupy_numpy_imports import load_image, xp
 
 
 def _align_with_tpf(object, tpf):
@@ -180,6 +183,14 @@ def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
         comp = getattr(backdrop, label)
         comp = xp.asarray(comp)
         finite = np.isfinite(comp).all(axis=1)
+        # If there aren't enough components, just return them.
+        if comp.shape[0] < 40:
+            setattr(backdrop, label + "_pack", comp)
+            continue
+        if finite.sum() < 50:
+            setattr(backdrop, label + "_pack", comp)
+            continue
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=AstropyWarning)
             if label == "jitter":
@@ -189,14 +200,6 @@ def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
             perc = np.diff(np.nanpercentile(comp, [90, 10], axis=0), axis=0)[0]
             m = ~sigma_clip(perc, sigma=sigma).mask
             comp = comp[:, m]
-
-        # If there aren't enough components, just return them.
-        if comp.shape[0] < 40:
-            setattr(backdrop, label + "_pack", comp)
-            continue
-        if finite.sum() < 50:
-            setattr(backdrop, label + "_pack", comp)
-            continue
 
         # We split at data downlinks where there is a gap of at least 0.2 days
         breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
@@ -309,6 +312,7 @@ def get_asteroid_files(catalog_fname, sectors, magnitude_limit=18):
     """Get files for each sector containing asteroid locations in the image."""
     import os
     import pickle
+
     import tess_ephem as te
 
     sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))

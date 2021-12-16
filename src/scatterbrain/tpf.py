@@ -1,6 +1,6 @@
 """Tools to work with TPFs"""
+from .cupy_numpy_imports import xp
 from .scene import StarScene
-from .cupy_numpy_imports import load_image, xp
 
 
 def correct_tpf(tpf, jitter=True):
