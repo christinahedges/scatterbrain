@@ -12,5 +12,6 @@ from .background import ScatteredLightBackground  # noqa
 from .cupy_numpy_imports import load_image  # noqa
 from .scene import StarScene  # noqa
 from .version import __version__  # noqa
+from .tpf import correct_tpf
 
 sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))

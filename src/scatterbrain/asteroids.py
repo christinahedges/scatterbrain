@@ -1,6 +1,7 @@
 """Tools that require the internet, and get asteroids"""
 import pickle
-
+import warnings
+from astropy.utils.exceptions import AstropyWarning
 import numpy as np
 import pandas as pd
 from astropy.time import Time
@@ -340,13 +341,17 @@ class AsteroidExtractor:
 
             # Mask out bad cadences based on leading and lagging
             cadence_mask = np.ones(ast.mask.sum(), bool)
-            k = np.isfinite(np.nansum(np.vstack([flux, l1, l2]), axis=0))
+            k = np.isfinite(np.nansum(np.vstack([flux]), axis=0))
 
             for dat in [l1, l2, np.hypot(l1, l2), l1 / l2]:
-                cadence_mask[k] &= ~sigma_clip(dat[k]).mask
-                cadence_mask[k] &= ~sigma_clip(
-                    np.gradient(dat[k], ast.time[ast.mask][k])
-                ).mask
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=AstropyWarning)
+                    m = sigma_clip(dat[k]).mask
+                    m[~np.isfinite(dat[k])] = False
+                    cadence_mask[k] &= ~m
+                    m = sigma_clip(np.gradient(dat[k], ast.time[ast.mask][k])).mask
+                    m[~np.isfinite(dat[k])] = False
+                    cadence_mask[k] &= ~m
 
             # These might help users
             xcent = np.average(
@@ -407,12 +412,8 @@ class AsteroidExtractor:
         )
         if plot:
             ax = _plot_asteroid(lc, thumb, aperture_mask)
-        return (
-            lc,
-            thumb,
-            aperture_mask,
-            collection,
-        )
+        # return (lc, thumb, aperture_mask, collection, model)
+        return lc
 
     def _correct_lc(self, lc):
 

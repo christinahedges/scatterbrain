@@ -46,6 +46,11 @@ class StarScene:
     batch_size: int
         This will process the fits images in "batches". The larger the batch_size,
         the more memory fitting will take. 512 is a sane default.
+    spline: bool
+        Whether to correct time with a spline. If False, will use a 2nd order polynomial.
+        If True, will use a 40 knot spline for every pixel.
+    ncomps: int
+        Number of components from the background model to use. Default is 15. Maximum is 20.
     """
 
     sector: int
@@ -54,6 +59,8 @@ class StarScene:
     row: Optional = None
     column: Optional = None
     batch_size: int = 512
+    spline: bool = False
+    ncomps: int = 10
 
     def __post_init__(self):
         if (self.row is None) | (self.column is None):
@@ -63,6 +70,7 @@ class StarScene:
             self.row = np.atleast_1d(self.row)
             self.column = np.atleast_1d(self.column)
 
+        self.ncomps = np.min([self.ncomps, 20])
         self.background = ScatteredLightBackground.from_disk(
             sector=self.sector,
             camera=self.camera,
@@ -81,10 +89,21 @@ class StarScene:
             np.arange(len(self.background.tstart)) <= self.break_point,
             np.arange(len(self.background.tstart)) > self.break_point,
         ]
-        self.Xs = [
-            self._get_design_matrix(self.orbit_masks[0], bounds=(-0.5, 0)),
-            self._get_design_matrix(self.orbit_masks[1], bounds=(0, 0.5)),
-        ]
+        if self.spline:
+            self.Xs = [
+                self._get_spline_design_matrix(
+                    self.orbit_masks[0], bounds=(-0.5, 0), ncomps=self.ncomps
+                ),
+                self._get_spline_design_matrix(
+                    self.orbit_masks[1], bounds=(0, 0.5), ncomps=self.ncomps
+                ),
+            ]
+        else:
+            self.Xs = [
+                self._get_design_matrix(self.orbit_masks[0], ncomps=self.ncomps),
+                self._get_design_matrix(self.orbit_masks[1], ncomps=self.ncomps),
+            ]
+
         self.weights = [
             np.zeros(
                 (self.Xs[0].shape[1], self.row.shape[0], self.column.shape[0]),
@@ -110,6 +129,9 @@ class StarScene:
         self.tstop = self.background.tstop
         self.quality = self.background.quality
         return
+
+    def quality_mask(self, quality_bitmask=175):
+        return (self.quality.astype(int) & (8192 | quality_bitmask)) == 0
 
     @property
     def empty(self):
@@ -159,7 +181,7 @@ class StarScene:
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
-    def _get_design_matrix(
+    def _get_spline_design_matrix(
         self, mask=None, ncomps=20, degree=2, nknots=20, bounds=(-0.5, 0.5)
     ):
         """Construct a design matrix from the ScatteredLightBackground object"""
@@ -182,12 +204,35 @@ class StarScene:
                 for i in xp.arange(-1, len(knots_wbounds) - degree - 3)
             ]
         ).T
+
+        bkg = self.background.jitter_pack[mask, :ncomps]
+        jitter = self.background.jitter_pack[mask, :ncomps]
+
         X = np.hstack(
             [
-                self.background.jitter_pack[mask, :ncomps],
-                self.background.bkg_pack[mask, :ncomps],
+                bkg,
+                jitter,
                 # np.vstack([t ** 0, t, t ** 2]).T,
                 As,
+            ]
+        )
+        return X
+
+    def _get_design_matrix(self, mask=None, ncomps=10):
+        """Construct a design matrix from the ScatteredLightBackground object"""
+        if mask is None:
+            mask = np.ones(self.background.tstart.shape[0], bool)
+        t = (self.background.tstart[mask] - self.background.tstart.mean()) / (
+            self.background.tstart[-1] - self.background.tstart[0]
+        )
+        bkg = self.background.jitter_pack[mask, :ncomps]
+        jitter = self.background.jitter_pack[mask, :ncomps]
+
+        X = np.hstack(
+            [
+                bkg,
+                jitter,
+                np.vstack([t ** 0, t, t ** 2]).T,
             ]
         )
         return X
@@ -310,6 +355,10 @@ class StarScene:
             ]:
                 setattr(self, key, hdu[0].header[key])
             setattr(self, "batch_size", hdu[0].header["BATSIZE"])
+            if "NCOMPS" in hdu[0].header:
+                setattr(self, "ncomps", hdu[0].header["NCOMPS"])
+            else:
+                setattr(self, "ncomps", 15)
 
         self.weight_row = np.arange(self.row[0], self.row[-1] + 1)
         self.weight_column = np.arange(self.column[0], self.column[-1] + 1)
@@ -360,6 +409,7 @@ class StarScene:
         for key in ["sector", "camera", "ccd"]:
             self.hdu0.header[key] = getattr(self, key)
         self.hdu0.header["BATSIZE"] = getattr(self, "batch_size")
+        self.hdu0.header["NCOMPS"] = getattr(self, "ncomps")
 
         if output_dir is None:
             output_dir = f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
@@ -485,9 +535,8 @@ class StarScene:
             ws = np.linalg.solve(
                 X.T.dot(X) + np.diag(1 / prior_sigma ** 2), X.T.dot(y.reshape(s))
             )
-
             res = y - X.dot(ws).reshape(y.shape)
-            m = sigma_clip(res, sigma_upper=5, sigma_lower=1e10, axis=(1, 2)).mask
+            m = sigma_clip(res, sigma_upper=4, sigma_lower=1e10, axis=(1, 2)).mask
             self.bad_pixels[orbit - 1][loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]] = (
                 m.sum(axis=0) / y.shape[0]
             ) >= 0.05
@@ -524,8 +573,14 @@ class StarScene:
         """Fit a StarScene model to a set of TESS filenames"""
         for loc in tqdm(self.locs):
             self._fill_weights_block(fnames=fnames, loc=loc)
+        for idx in range(2):
+            self.bad_pixels[idx] |= (
+                np.asarray(np.gradient(self.bad_pixels[idx].astype(float))) != 0
+            ).any(axis=0)
 
-    def model(self, row=None, column=None, time_indices=None, mask_bad_pixels=True):
+    def model(
+        self, row=None, column=None, time_indices=None, mask_bad_pixels=True, trend=True
+    ):
         """Returns a model for a given row and column.
 
         Parameters
@@ -563,21 +618,26 @@ class StarScene:
                 self._load_background(row=row, column=column)
         # r = np.where(np.in1d(self.weight_row, row))[0]
         # c = np.where(np.in1d(self.weight_column, column))[0]
-        r, c = row, column
+        r, c = row - row[0], column - column[0]
         w1 = self.weights[0][:, r][:, :, c].reshape(
             (self.weights[0].shape[0], row.shape[0] * column.shape[0])
         )
         w2 = self.weights[1][:, r][:, :, c].reshape(
             (self.weights[1].shape[0], row.shape[0] * column.shape[0])
         )
-
-        bp1 = self.bad_pixels[0][r][:, c].reshape((row.shape[0] * column.shape[0]))
-        bp2 = self.bad_pixels[1][r][:, c].reshape((row.shape[0] * column.shape[0]))
         xmask1 = np.in1d(np.where(self.orbit_masks[0])[0], time_indices)
         xmask2 = np.in1d(np.where(self.orbit_masks[1])[0], time_indices)
-        m1, m2 = self.Xs[0][xmask1].dot(w1), self.Xs[1][xmask2].dot(w2)
-        m1[:, bp1] = np.nan
-        m2[:, bp2] = np.nan
+        if trend:
+            m1, m2 = self.Xs[0][xmask1].dot(w1), self.Xs[1][xmask2].dot(w2)
+        else:
+            m1, m2 = self.Xs[0][:, : self.ncomps * 2][xmask1].dot(
+                w1[: self.ncomps * 2]
+            ), self.Xs[1][:, : self.ncomps * 2][xmask2].dot(w2[: self.ncomps * 2])
+        if mask_bad_pixels:
+            bp1 = self.bad_pixels[0][r][:, c].reshape((row.shape[0] * column.shape[0]))
+            bp2 = self.bad_pixels[1][r][:, c].reshape((row.shape[0] * column.shape[0]))
+            m1[:, bp1] = np.nan
+            m2[:, bp2] = np.nan
         model = np.vstack([m1, m2])
         model = model.reshape((model.shape[0], row.shape[0], column.shape[0]))
         background = self.background.model(time_indices)
@@ -619,6 +679,7 @@ class StarScene:
                         .dot(w1)
                         .reshape((row.shape[0], column.shape[0]))
                     )
+                    model[tdx][self.bad_pixels[orbit][row][:, column]] = np.nan
         return model
 
     @staticmethod

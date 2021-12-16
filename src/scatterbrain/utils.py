@@ -3,7 +3,7 @@ import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.convolution import Gaussian1DKernel, convolve
-from astropy.stats import sigma_clipped_stats
+from astropy.stats import sigma_clipped_stats, sigma_clip
 from fbpca import pca
 from matplotlib import animation
 from scipy.signal import medfilt
@@ -11,6 +11,8 @@ from scipy.signal import medfilt
 from .cupy_numpy_imports import xp, load_image
 from . import PACKAGEDIR
 import pandas as pd
+import warnings
+from astropy.utils.exceptions import AstropyWarning
 
 
 def _align_with_tpf(object, tpf):
@@ -152,9 +154,9 @@ def get_sat_mask(f):
     return ~sat
 
 
-def _package_pca_comps(backdrop, xpca_components=20):
+def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
     """Packages the jitter terms into detrending vectors similar to CBVs.
-    Splits the jitter into timescales of:
+    If `split_time_domain` then splits the jitter into timescales of:
         - t < 0.5 days
         - t > 0.5 days
     Parameters
@@ -163,7 +165,10 @@ def _package_pca_comps(backdrop, xpca_components=20):
         Ixput backdrop to package
     xpca_components : int
         Number of pca components to compress into. Default 20, which will result
-        in an ntimes x 40 matrix.
+        in an ntimes x 40 matrix if `split_time_domain`.
+    split_time_domain: bool
+        If True will split into two different time scales. Otherwise will take a PCA.
+
     Returns
     -------
     matrix : xp.ndarray
@@ -175,6 +180,16 @@ def _package_pca_comps(backdrop, xpca_components=20):
         comp = getattr(backdrop, label)
         comp = xp.asarray(comp)
         finite = np.isfinite(comp).all(axis=1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=AstropyWarning)
+            if label == "jitter":
+                sigma = 2
+            else:
+                sigma = 5
+            perc = np.diff(np.nanpercentile(comp, [90, 10], axis=0), axis=0)[0]
+            m = ~sigma_clip(perc, sigma=sigma).mask
+            comp = comp[:, m]
+
         # If there aren't enough components, just return them.
         if comp.shape[0] < 40:
             setattr(backdrop, label + "_pack", comp)
@@ -189,29 +204,37 @@ def _package_pca_comps(backdrop, xpca_components=20):
 
         comp_short = comp[finite].copy()
 
-        nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
-        nb = [nb if (nb % 2) == 1 else nb + 1][0]
+        if split_time_domain:
+            nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
+            nb = [nb if (nb % 2) == 1 else nb + 1][0]
 
-        def smooth(x):
-            return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
+            def smooth(x):
+                return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
 
-        comp_medium = xp.hstack(
-            [smooth(comp[finite][x1:x2]) for x1, x2 in zip(breaks[:-1], breaks[1:])]
-        ).T
+            comp_medium = xp.hstack(
+                [smooth(comp[finite][x1:x2]) for x1, x2 in zip(breaks[:-1], breaks[1:])]
+            ).T
 
-        U1, s, V = pca(comp_short - comp_medium, xpca_components, n_iter=10, raw=True)
-        U2, s, V = pca(comp_medium, xpca_components, n_iter=10, raw=True)
+            U1, s, V = pca(
+                comp_short - comp_medium, xpca_components, n_iter=10, raw=True
+            )
+            U2, s, V = pca(comp_medium, xpca_components, n_iter=10, raw=True)
 
-        X = xp.hstack(
-            [
-                U1,
-                U2,
-            ]
-        )
-        X = xp.hstack([X[:, idx::xpca_components] for idx in range(xpca_components)])
-        Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
-        Xall[finite] = X
-
+            X = xp.hstack(
+                [
+                    U1,
+                    U2,
+                ]
+            )
+            X = xp.hstack(
+                [X[:, idx::xpca_components] for idx in range(xpca_components)]
+            )
+            Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
+            Xall[finite] = X
+        else:
+            X, s, V = pca(comp_short, xpca_components, n_iter=10, raw=True)
+            Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
+            Xall[finite] = X
         setattr(backdrop, label + "_pack", Xall)
     return
 

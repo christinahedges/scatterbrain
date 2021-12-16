@@ -194,6 +194,9 @@ class ScatteredLightBackground(object):
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
+    def quality_mask(self, quality_bitmask=175):
+        return (self.quality.astype(int) & (8192 | quality_bitmask)) == 0
+
     @property
     def path(self):
         return (
@@ -435,6 +438,7 @@ class ScatteredLightBackground(object):
             bkg.append(bk)
             if mask_asteroids:
                 asteroid_mask += ast_mask
+
         return (
             xp.vstack(weights_basic),
             xp.vstack(weights_full),
@@ -663,7 +667,7 @@ class ScatteredLightBackground(object):
         camera=None,
         ccd=None,
         verbose=False,
-        quality_mask=175,
+        quality_bitmask=175,
         njitter=5000,
     ):
         """Creates a ScatteredLightBackground model from filenames
@@ -727,7 +731,7 @@ class ScatteredLightBackground(object):
                 test_frame = len(fnames) // 2
             else:
                 test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
-        ok = (self.quality.astype(int) & (8192 | quality_mask)) == 0
+        ok = self.quality_mask(quality_bitmask)
         self._average_frame = (
             get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
             - 1e-6
@@ -770,6 +774,5 @@ class ScatteredLightBackground(object):
         #         )
         #     ] = np.nanmedian(self._average_frame)
         # self._average_frame += min_frame
-
         _package_pca_comps(self)
         return self
