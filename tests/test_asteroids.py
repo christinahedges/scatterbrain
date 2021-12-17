@@ -1,5 +1,3 @@
-import numpy as np
-
 from scatterbrain import sector_times
 from scatterbrain.utils import get_asteroid_locations, get_asteroid_mask
 

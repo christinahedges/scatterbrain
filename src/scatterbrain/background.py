@@ -208,8 +208,10 @@ class ScatteredLightBackground(object):
         """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
         # if frame.shape != (2048, 2048):
         #     raise ValueError("Pass a frame that is (2048, 2048)")
+
         if not hasattr(self, "star_mask"):
             self.star_mask = get_star_mask(frame)
+
         if not hasattr(self, "sat_mask"):
             self.sat_mask = get_sat_mask(frame)
         if not hasattr(self, "jitter_mask"):
@@ -483,7 +485,10 @@ class ScatteredLightBackground(object):
                 )
         else:
             raise ValueError("Pass an `xp.ndarray` or a `list`")
-        self._average_frame = np.nanmin(flux_cube, axis=0)
+        if len(flux_cube) < 50:
+            self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
+        else:
+            self._average_frame = np.nanmin(flux_cube, axis=0)
         self._build_masks(flux_cube[test_frame] - self._average_frame)
         (
             self.weights_basic,
@@ -732,10 +737,13 @@ class ScatteredLightBackground(object):
             else:
                 test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
         ok = self.quality_mask(quality_bitmask)
-        self._average_frame = (
-            get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
-            - 1e-6
-        )
+        if ok.sum() < 50:
+            self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
+        else:
+            self._average_frame = (
+                get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
+                - 1e-6
+            )
         self._build_masks(
             load_image(fnames[test_frame], cutout_size=cutout_size)
             - self._average_frame
