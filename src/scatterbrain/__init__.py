@@ -5,6 +5,13 @@ from __future__ import absolute_import
 import os
 
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
-from .backdrop import BackDrop  # noqa
+
+import pickle  # noqa
+
+from .background import ScatteredLightBackground  # noqa
 from .cupy_numpy_imports import load_image  # noqa
+from .scene import StarScene  # noqa
+from .tpf import correct_tpf  # noqa
 from .version import __version__  # noqa
+
+sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))

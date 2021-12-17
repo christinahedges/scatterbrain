@@ -1,6 +1,6 @@
-# Documentation for `design_matrix`
+# Documentation for `StarScene`
 
-::: scatterbrain.backdrop.BackDrop
+::: scatterbrain.scene.StarScene
     handler: python
     rendering:
       show_root_heading: true

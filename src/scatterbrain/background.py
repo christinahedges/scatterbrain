@@ -15,19 +15,21 @@ from .designmatrix import (
 )
 from .utils import (
     _align_with_tpf,
-    _asteroid_mask,
     _package_pca_comps,
+    _validate_inputs,
+    get_asteroid_mask,
+    get_min_image_from_filenames,
     get_sat_mask,
     get_star_mask,
-    test_strip,
+    identify_bad_frames,
 )
 from .version import __version__
 
 
-class BackDrop(object):
+class ScatteredLightBackground(object):
     """Class for working with TESS data to fit and use scattered background models.
 
-    BackDrop will automatically set up a reasonable background model for you. If you
+    ScatteredLightBackground will automatically set up a reasonable background model for you. If you
     want to tweak the model, check out the `design_matrix` API.
     """
 
@@ -45,9 +47,10 @@ class BackDrop(object):
         tstop=None,
         quality=None,
         verbose=False,
-        njitter=5000,
+        njitter=10000,
+        strap_npoly=2,
     ):
-        """Initialize a `BackDrop` object either for fitting or loading a model.
+        """Initialize a `ScatteredLightBackground` object either for fitting or loading a model.
 
         Parameters
         ----------
@@ -67,7 +70,6 @@ class BackDrop(object):
                 Number of knots to for spline matrix
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
-
         """
 
         self.sector = sector
@@ -75,6 +77,7 @@ class BackDrop(object):
         self.ccd = ccd
         self.verbose = verbose
         self.njitter = njitter
+        self.strap_npoly = strap_npoly
         self.A1 = radial_spline_design_matrix(
             column=column,
             row=row,
@@ -91,9 +94,23 @@ class BackDrop(object):
             prior_mu=2,
             prior_sigma=100,
             cutout_size=cutout_size,
-            npoly=2,
+            npoly=4,
         )
 
+        if column is not None:
+            strap_prior_sigma = np.hstack(
+                [
+                    np.ones(column.shape[0]) * 30 ** (idx + 1)
+                    for idx in range(self.strap_npoly)
+                ]
+            )
+        else:
+            strap_prior_sigma = np.hstack(
+                [
+                    np.ones(cutout_size) * 30 ** (idx + 1)
+                    for idx in range(self.strap_npoly)
+                ]
+            )
         self.A2 = (
             spline_design_matrix(
                 column=column,
@@ -117,8 +134,9 @@ class BackDrop(object):
                 row=row,
                 ccd=ccd,
                 sigma_f=sigma_f,
-                prior_sigma=30,
+                prior_sigma=strap_prior_sigma,
                 cutout_size=cutout_size,
+                npoly=self.strap_npoly,
             )
         )
         self.cutout_size = cutout_size
@@ -134,8 +152,9 @@ class BackDrop(object):
         self.weights_full = []
         self.jitter = []
         self.bkg = []
+        # self._average_frame = xp.zeros(self.shape)
+        # self._average_frame_count = 0
         self._average_frame = xp.zeros(self.shape)
-        self._average_frame_count = 0
         self.tstart = tstart
         self.tstop = tstop
         self.quality = quality
@@ -148,16 +167,19 @@ class BackDrop(object):
         """Resets the weights and average frame"""
         self.weights_basic = []
         self.weights_full = []
+        # self._average_frame = xp.zeros(self.shape)
+        # self._average_frame_count = 0
         self._average_frame = xp.zeros(self.shape)
-        self._average_frame_count = 0
         self.jitter = []
         self.bkg = []
 
     def __repr__(self):
-        return f"BackDrop CCD:{self.ccd} ({len(self.weights_basic)} frames)"
+        return f"ScatteredLightBackground CCD:{self.ccd} ({len(self.weights_basic)} frames)"
 
     def __getitem__(self, key):
         """Set indexing"""
+        if self.tstart is None:
+            raise ValueError("Can not slice an object with no `tstart` array.")
         attrs = [
             item
             for item in self.__dir__()
@@ -172,12 +194,24 @@ class BackDrop(object):
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
+    def quality_mask(self, quality_bitmask=175):
+        return (self.quality.astype(int) & (8192 | quality_bitmask)) == 0
+
+    @property
+    def path(self):
+        return (
+            f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+        )
+
     def _build_masks(self, frame):
         """Builds a set of pixel masks for the frame, which downweight saturated pixels or pixels with stars."""
         # if frame.shape != (2048, 2048):
         #     raise ValueError("Pass a frame that is (2048, 2048)")
+
         if not hasattr(self, "star_mask"):
             self.star_mask = get_star_mask(frame)
+
         if not hasattr(self, "sat_mask"):
             self.sat_mask = get_sat_mask(frame)
         if not hasattr(self, "jitter_mask"):
@@ -213,7 +247,14 @@ class BackDrop(object):
         self.update_sigma_f(sigma_f)
         return
 
-    def _build_asteroid_mask(self, flux_cube):
+    @property
+    def shape(self):
+        if self.column is not None:
+            return (self.row.shape[0], self.column.shape[0])
+        else:
+            return
+
+    def _build_asteroid_mask(self, flux_cube, times):
         """Creates a mask for asteroids, and increases the flux errors in those
         pixels to reduce their contribution to the model
 
@@ -223,23 +264,22 @@ class BackDrop(object):
             3D flux cube of data. Be aware that this should be a short "batch"
             of flux data (e.g. 50 frames).
         """
-        ast_mask = _asteroid_mask(flux_cube)
+        #        ast_mask = _asteroid_mask(flux_cube)
+        ast_mask = get_asteroid_mask(
+            sector=self.sector,
+            camera=self.camera,
+            ccd=self.ccd,
+            cutout_size=flux_cube[0].shape[0],
+            times=times,
+        )
         sigma_f = xp.ones(flux_cube[0].shape)
         # More than the saturation limit
         sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         # Here we downweight asteroids and other variable pixels
-        # asteroids are probably not much brighter than 100s of counts
-        sigma_f[ast_mask] += 200
+        # The threshold is set very high, so we don't want these contributing at all
+        sigma_f[ast_mask] = 1e6
         self.update_sigma_f(sigma_f)
         return ast_mask
-
-    def _fit_basic(self, flux):
-        """Fit the first design matrix"""
-        self.weights_basic.append(self.A1.fit_frame(xp.log10(flux)))
-
-    def _fit_full(self, flux):
-        """Fit the second design matrix"""
-        self.weights_full.append(self.A2.fit_frame(flux))
 
     def _model_basic(self, tdx):
         """Model from the first design matrix"""
@@ -249,77 +289,41 @@ class BackDrop(object):
         """Model from the second design matrix"""
         return self.A2.dot(self.weights_full[tdx]).reshape(self.shape)
 
-    def model(self, time_index):
+    def model(self, time_index=None):
         """Build a model for a frame with index `time_index`"""
-        return self._model_basic(time_index) + self._model_full(time_index)
+        if time_index is None:
+            time_index = np.arange(self.tstart.shape[0])
+        single_frame = not hasattr(time_index, "__iter__")
+        time_index = np.atleast_1d(time_index)
+        if single_frame:
+            return self._model_basic(time_index[0]) + self._model_full(time_index[0])
+        return np.asarray(
+            [self._model_basic(tdx) + self._model_full(tdx) for tdx in time_index]
+        )
 
-    def fit_frame(self, frame):
-        """Fit a single frame of TESS data.
-        This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
+    def diagnose(self, fnames, ntimes=4):
+        import matplotlib.pyplot as plt
 
-        Parameters
-        ----------
-        frame : np.ndarray
-            2D array of values, must be shape
-            `(self.cutout_size, self.cutout_size)`
-        """
-        if not frame.shape == (self.cutout_size, self.cutout_size):
-            raise ValueError(f"Frame is not ({self.cutout_size}, {self.cutout_size})")
-        self._fit_basic(frame)
-        res = frame - self._model_basic(-1)
-        self._fit_full(res)
-        res = res - self._model_full(-1)
-        self.jitter.append(res[self.jitter_mask])
-        self.bkg.append(res[self.bkg_mask])
-        self._average_frame += res
-        self._average_frame_count += 1
-        return
+        tdxs = np.linspace(0, self.weights_full.shape[0], ntimes + 2, dtype=int)[1:-1]
+        fig, ax = plt.subplots(ntimes, 3, figsize=(4 * 3, 4 * ntimes))
+        for jdx, tdx in enumerate(tdxs):
+            while self.quality[tdx] != 0:
+                tdx += 1
+            dat = load_image(fnames[tdx])[self.row][:, self.column]
+            v = np.nanpercentile(dat, (5, 95))
+            ax[jdx, 0].imshow(dat, vmin=v[0], vmax=v[1])
+            ax[jdx, 0].set_ylabel(f"{self.tstart[tdx]} BTJD")
+            ax[jdx, 1].imshow(self.model(tdx), vmin=0, vmax=v[1] - v[0])
+            ax[jdx, 2].imshow(dat - self.model(tdx), vmin=0, vmax=v[1] - v[0])
+            for idx, title in enumerate(["Data", "Model", "Residuals"]):
+                if jdx == 0:
+                    ax[jdx, idx].set(title=title)
+                ax[jdx, idx].set(xticks=[], yticks=[])
+        plt.tight_layout()
 
     @property
     def average_frame(self):
-        return (self._average_frame / self._average_frame_count)[self.row, :][
-            :, self.column
-        ]
-
-    def fit_model(self, flux_cube, test_frame=0, verbose=False):
-        """Fit a model to a flux cube, fitting each frame individually
-
-        This will append to the list properties `self.weights_basic`, `self.weights_full`, `self.jitter`.
-
-        Parameters
-        ----------
-        flux_cube : xp.ndarray or list
-            3D array of frames.
-        test_frame : int
-            The index of the frame to use as the "reference frame".
-            This reference frame will be used to build masks to set `sigma_f`.
-            It should be the lowest background frame.
-        """
-        if isinstance(flux_cube, list):
-            if not np.all(
-                [f.shape == (self.cutout_size, self.cutout_size) for f in flux_cube]
-            ):
-                raise ValueError(
-                    f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-                )
-        elif isinstance(flux_cube, xp.ndarray):
-            if flux_cube.ndim != 3:
-                raise ValueError("`flux_cube` must be 3D")
-            if not flux_cube.shape[1:] == (self.cutout_size, self.cutout_size):
-                raise ValueError(
-                    f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-                )
-        else:
-            raise ValueError("Pass an `xp.ndarray` or a `list`")
-        self._build_masks(flux_cube[test_frame])
-        for flux in tqdm(
-            flux_cube,
-            desc="Fitting Frames",
-            leave=True,
-            position=0,
-        ):
-            self.fit_frame(flux)
-        _package_pca_comps(self)
+        return (self._average_frame)[self.row, :][:, self.column]
 
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
@@ -331,15 +335,19 @@ class BackDrop(object):
         #        weights = list(self.A2.fit_batch(flux))
         return self.A2.fit_batch(flux)
 
-    def _fit_batch(self, flux_cube, mask_asteroids=True):
+    def _fit_batch(self, flux_cube, times=None, mask_asteroids=True):
         """Fit the both design matrices, in a batched mode"""
+        if mask_asteroids:
+            if times is None:
+                raise ValueError("Need times to mask asteroids")
+            ast_mask = self._build_asteroid_mask(flux_cube, times=times)
+        else:
+            ast_mask = None
         weights_basic = self._fit_basic_batch(flux_cube)
         for tdx in range(len(weights_basic)):
             flux_cube[tdx] -= xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
-        if mask_asteroids:
-            ast_mask = self._build_asteroid_mask(flux_cube)
         weights_full = self._fit_full_batch(flux_cube)
 
         jitter, bkg = [], []
@@ -347,8 +355,8 @@ class BackDrop(object):
             flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
             jitter.append(flux_cube[tdx][self.jitter_mask])
             bkg.append(flux_cube[tdx][self.bkg_mask])
-            self._average_frame += flux_cube[tdx]
-            self._average_frame_count += 1
+            # self._average_frame += flux_cube[tdx]
+            # self._average_frame_count += 1
             flux_cube[tdx] += self.A2.dot(weights_full[tdx]).reshape(self.shape)
 
         for tdx in range(len(weights_basic)):
@@ -357,8 +365,92 @@ class BackDrop(object):
             )
         return weights_basic, weights_full, jitter, bkg, ast_mask
 
-    def fit_model_batched(
-        self, flux_cube, batch_size=50, test_frame=0, mask_asteroids=True
+    def _run_batches(self, input, tstart=None, batch_size=25, mask_asteroids=True):
+        """
+        Fit the model in batches, cutting the data into appropriate batch sizes.
+
+        Parameters
+        ----------
+        input: list or np.ndarray
+            list of filenames or 3D np.ndarray of flux values
+        tstart: None or np.ndarray
+            Array of tstart values, this is important for masking asteroids only
+        batch_size: int
+            Size to cut the data into in time
+        mask_asteroids: bool
+            Whether to mask out asteroids
+
+        Returns
+        -------
+        weights_basic: np.ndarray
+            The weights for the basic model. Has shape ntimes x nbasic weights
+        weights_full: np.ndarray
+            The weights for the basic model. Has shape ntimes x nfull weights
+        jitter: np.ndarray
+            The jitter components for the dataset, has size ntimes x njitter
+        bkg: np.ndarray
+            The background components for the dataset, has size ntimes x njitter
+        asteroid_mask: np.ndarray
+            A boolean mask showing where asteroids have been masked at some point
+            in time. Has shape cutout_size x cutout_size.
+        """
+        if mask_asteroids and (tstart is None):
+            raise ValueError("To mask asteroids, must pass `tstart` values.")
+
+        nbatches = xp.ceil(len(input) / batch_size).astype(int)
+        weights_basic, weights_full, jitter, bkg = [], [], [], []
+        l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
+        if l[-1] > len(input):
+            l[-1] = len(input)
+        asteroid_mask = np.zeros((self.cutout_size, self.cutout_size), dtype=int)
+
+        for l1, l2 in tqdm(
+            zip(l[:-1], l[1:]),
+            desc=f"Fitting frames in batches of {batch_size}",
+            total=len(l) - 1,
+            leave=True,
+            position=0,
+        ):
+            if isinstance(input, (np.ndarray, list)) & isinstance(input[0], str):
+                flux_cube = [
+                    load_image(input[idx], cutout_size=self.cutout_size)
+                    - self._average_frame
+                    for idx in np.arange(l1, l2)
+                ]
+            elif isinstance(input, (np.ndarray, list)) & isinstance(
+                input[0], np.ndarray
+            ):
+                flux_cube = [i - self._average_frame for i in input[l1:l2]]
+            else:
+                raise ValueError("Can not parse input.")
+
+            if mask_asteroids:
+                w1, w2, j, bk, ast_mask = self._fit_batch(
+                    flux_cube,
+                    times=tstart[l1:l2],
+                    mask_asteroids=mask_asteroids,
+                )
+            else:
+                w1, w2, j, bk, ast_mask = self._fit_batch(
+                    flux_cube, mask_asteroids=mask_asteroids
+                )
+            weights_basic.append(w1)
+            weights_full.append(w2)
+            jitter.append(j)
+            bkg.append(bk)
+            if mask_asteroids:
+                asteroid_mask += ast_mask
+
+        return (
+            xp.vstack(weights_basic),
+            xp.vstack(weights_full),
+            xp.vstack(jitter),
+            xp.vstack(bkg),
+            asteroid_mask,
+        )
+
+    def fit_model(
+        self, flux_cube, tstart=None, batch_size=50, test_frame=0, mask_asteroids=False
     ):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
 
@@ -368,6 +460,8 @@ class BackDrop(object):
         ----------
         flux_cube : xp.ndarray
             3D array of frames.
+        tstart: np.ndarray
+            Times for each frame. Required if masking asteroids.
         batch_size : int
             Number of frames to fit at once.
         test_frame : int
@@ -391,33 +485,39 @@ class BackDrop(object):
                 )
         else:
             raise ValueError("Pass an `xp.ndarray` or a `list`")
-        self._build_masks(flux_cube[test_frame])
-        nbatches = xp.ceil(len(flux_cube) / batch_size).astype(int)
-        weights_basic, weights_full, jitter, bkg = [], [], [], []
-        l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
-        if l[-1] > len(flux_cube):
-            l[-1] = len(flux_cube)
-        for l1, l2 in zip(l[:-1], l[1:]):
-            w1, w2, j, bk, ast_mask = self._fit_batch(
-                flux_cube[l1:l2], mask_asteroids=mask_asteroids
-            )
-            weights_basic.append(w1)
-            weights_full.append(w2)
-            jitter.append(j)
-            bkg.append(bk)
-        self.weights_basic = list(xp.vstack(weights_basic))
-        self.weights_full = list(xp.vstack(weights_full))
-        self.jitter = list(xp.vstack(jitter))
-        self.bkg = list(xp.vstack(bkg))
+        if len(flux_cube) < 50:
+            self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
+        else:
+            self._average_frame = np.nanmin(flux_cube, axis=0)
+        self._build_masks(flux_cube[test_frame] - self._average_frame)
+        (
+            self.weights_basic,
+            self.weights_full,
+            self.jitter,
+            self.bkg,
+            self.asteroid_mask,
+        ) = self._run_batches(
+            flux_cube,
+            tstart=tstart,
+            batch_size=batch_size,
+            mask_asteroids=mask_asteroids,
+        )
+        # self._average_frame = flux_cube[test_frame] - self.model(test_frame)
+        # # Mask out the asteroids from the average frame
+        # if mask_asteroids:
+        #     self._average_frame[
+        #         get_asteroid_mask(
+        #             self.sector,
+        #             self.camera,
+        #             self.ccd,
+        #             cutout_size=self.cutout_size,
+        #             times=[self.tstart[test_frame]],
+        #         )
+        #     ] = np.nanmedian(self._average_frame)
+        # self._average_frame += min_frame
+
         _package_pca_comps(self)
         return
-
-    @property
-    def shape(self):
-        if self.column is not None:
-            return (self.row.shape[0], self.column.shape[0])
-        else:
-            return
 
     def _package_weights_hdulist(self):
         hdu0 = self.hdu0
@@ -438,7 +538,7 @@ class BackDrop(object):
         hdu3 = fits.ImageHDU(np.asarray(self.weights_full)[s], name="WEIGHTS2")
         hdu4 = fits.ImageHDU(np.asarray(self.jitter_pack)[s], name="JITTER")
         hdu5 = fits.ImageHDU(np.asarray(self.bkg_pack)[s], name="BKG")
-        hdu6 = fits.ImageHDU(np.asarray(self.average_frame), name="AVGFRAME")
+        hdu6 = fits.ImageHDU(np.asarray(self._average_frame), name="AVGFRAME")
         hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3, hdu4, hdu5, hdu6])
         return hdul
 
@@ -447,11 +547,13 @@ class BackDrop(object):
         if not hasattr(self, "weights_basic"):
             raise ValueError("There is no model to save")
         self.hdu0 = fits.PrimaryHDU()
-        self.hdu0.header["ORIGIN"] = "tess-backdrop"
+        self.hdu0.header["ORIGIN"] = "scatterbrain"
         self.hdu0.header["AUTHOR"] = "christina.l.hedges@nasa.gov"
         self.hdu0.header["VERSION"] = __version__
-        for key in ["sector", "camera", "ccd", "cutout_size"]:
+        for key in ["sector", "camera", "ccd"]:
             self.hdu0.header[key] = getattr(self, key)
+        self.hdu0.header["CUTSIZE"] = getattr(self, "cutout_size")
+        self.hdu0.header["STRPPOLY"] = getattr(self, "strap_npoly")
 
         if output_dir is None:
             output_dir = f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
@@ -479,7 +581,7 @@ class BackDrop(object):
 
         Returns
         -------
-        self: `tess_backdrop.SimpleBackDrop` object
+        self: `scatterbrain.SimpleScatteredLightBackground` object
         """
         if isinstance(input, tuple):
             if len(input) == 3:
@@ -502,9 +604,10 @@ class BackDrop(object):
                 "sector",
                 "camera",
                 "ccd",
-                "cutout_size",
             ]:
                 setattr(self, key, hdu[0].header[key])
+            setattr(self, "cutout_size", hdu[0].header["CUTSIZE"])
+
             if "tstart" in hdu[1].data.names:
                 self.tstart = hdu[1].data["tstart"]
             if "tstop" in hdu[1].data.names:
@@ -513,29 +616,43 @@ class BackDrop(object):
                 self.quality = hdu[1].data["QUALITY"]
             self.weights_basic = list(hdu[2].data)
             weights_full = hdu[3].data
+            self.strap_npoly = hdu[0].header["STRPPOLY"]
+            # We have to do some work to get out just the column pixels
+            # we are interested in
+            strap_weights = np.hstack(
+                (
+                    weights_full[:, -2048 * self.strap_npoly :].reshape(
+                        (weights_full.shape[0], self.strap_npoly, 2048)
+                    )[:, :, self.column]
+                ).transpose([1, 0, 2])
+            )
             self.weights_full = np.hstack(
-                [weights_full[:, :-2048], weights_full[:, -2048:][:, self.column]]
+                [
+                    weights_full[:, : -2048 * self.strap_npoly],
+                    strap_weights,
+                ]
             )
             self.jitter_pack = hdu[4].data
             self.bkg_pack = hdu[5].data
+            # self._average_frame = hdu[6].data
+            # self._average_frame_count = 1
             self._average_frame = hdu[6].data
-            self._average_frame_count = 1
         return self
 
     @staticmethod
     def from_disk(sector, camera, ccd, row=None, column=None, dir=None):
-        return BackDrop(
+        return ScatteredLightBackground(
             sector=sector, camera=camera, ccd=ccd, row=row, column=column
         ).load((sector, camera, ccd), dir=dir)
 
     @staticmethod
     def from_tpf(tpf, dir=None):
-        backdrop = BackDrop(
+        backdrop = ScatteredLightBackground(
             sector=tpf.sector,
             camera=tpf.camera,
             ccd=tpf.ccd,
-            row=np.arange(tpf.shape[1]) + tpf.row,
-            column=np.arange(tpf.shape[2]) + tpf.column,
+            row=np.arange(tpf.shape[1]) + tpf.row - 1,
+            column=np.arange(tpf.shape[2]) + tpf.column - 44 - 1,
         ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
         idx, jdx = _align_with_tpf(backdrop, tpf)
         return backdrop[idx]
@@ -547,6 +664,7 @@ class BackDrop(object):
     @staticmethod
     def from_tess_images(
         fnames,
+        mask_asteroids=True,
         batch_size=50,
         test_frame=None,
         cutout_size=2048,
@@ -554,10 +672,10 @@ class BackDrop(object):
         camera=None,
         ccd=None,
         verbose=False,
-        quality_mask=175,
+        quality_bitmask=175,
         njitter=5000,
     ):
-        """Creates a backdrop model from filenames
+        """Creates a ScatteredLightBackground model from filenames
 
         Parameters
         ----------
@@ -571,43 +689,14 @@ class BackDrop(object):
 
         Returns
         -------
-        b : `scatterbrain.backdrop.BackDrop`
-            BackDrop object
+        b : `scatterbrain.ScatteredLightBackground.ScatteredLightBackground`
+            ScatteredLightBackground object
         """
-        if not isinstance(fnames, (list, xp.ndarray)):
-            raise ValueError("Pass an array of file names")
-        if not isinstance(fnames[0], (str)):
-            raise ValueError("Pass an array of strings")
+        fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
 
-        if sector is None:
-            try:
-                sector = int(fnames[0].split("-s")[1].split("-")[0])
-            except ValueError:
-                raise ValueError("Can not parse file name for sector number")
-        if camera is None:
-            try:
-                camera = fitsio.read_header(fnames[0], ext=1)["CAMERA"]
-            except ValueError:
-                raise ValueError("Can not find a camera number")
-        if ccd is None:
-            try:
-                ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
-            except ValueError:
-                raise ValueError("Can not find a CCD number")
-
-        blown_out_strips = np.asarray(
-            [
-                test_strip(fname)
-                for fname in tqdm(
-                    fnames,
-                    desc="Finding blown out strips",
-                    position=0,
-                    leave=True,
-                )
-            ]
-        )
-        # make a backdrop object
-        self = BackDrop(
+        blown_out_frames = identify_bad_frames(fnames)
+        # make a ScatteredLightBackground object
+        self = ScatteredLightBackground(
             sector=sector,
             camera=camera,
             ccd=ccd,
@@ -626,68 +715,45 @@ class BackDrop(object):
         self.quality = np.asarray(
             [fitsio.read_header(fname, ext=1)["DQUALITY"] for fname in fnames]
         )
-        self.quality[blown_out_strips.any(axis=1)] |= 8192
+        self.quality[blown_out_frames] |= 8192
         # Step 1: find a good test frame
         if test_frame is None:
+            a1, a2 = (
+                np.min([self.A1.bore_pixel[0], 2047]),
+                44 + np.min([self.A1.bore_pixel[1], 0]),
+            )
+            a1, a2 = a1.astype(int), a2.astype(int)
+
             # Test frame is a low flux frame, close to the middle of the dataset.
             f = np.asarray(
                 [
-                    fitsio.read(fname)[
-                        np.min([self.A1.bore_pixel[0], 2047]),
-                        45 + np.min([self.A1.bore_pixel[1], 0]),
-                    ]
-                    for fname in tqdm(
-                        fnames,
-                        desc="Finding test frame",
-                        leave=True,
-                        position=0,
-                    )
+                    fitsio.FITS(fname)[1][a1 : a1 + 1, a2 : a2 + 1][0][0]
+                    for fname in fnames
                 ]
             )
-
             l = np.where((f < np.nanpercentile(f, 5)) & (self.quality == 0))[0]
             if len(l) == 0:
                 test_frame = len(fnames) // 2
             else:
                 test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
-
-        self._build_masks(load_image(fnames[test_frame], cutout_size=cutout_size))
-
-        # Step 2: run as a batch...
-        def run_batch(fnames):
-            nbatches = xp.ceil(len(fnames) / batch_size).astype(int)
-            weights_basic, weights_full, jitter, bkg = [], [], [], []
-            l = xp.arange(0, nbatches + 1, dtype=int) * batch_size
-            if l[-1] > len(fnames):
-                l[-1] = len(fnames)
-            asteroid_mask = np.zeros((self.cutout_size, self.cutout_size), dtype=int)
-            for l1, l2 in tqdm(
-                zip(l[:-1], l[1:]),
-                desc=f"Fitting frames in batches of {batch_size}",
-                total=len(l) - 1,
-                leave=True,
-                position=0,
-            ):
-                flux_cube = [
-                    load_image(fnames[idx], cutout_size=cutout_size)
-                    for idx in np.arange(l1, l2)
-                ]
-                w1, w2, j, bk, ast_mask = self._fit_batch(flux_cube)
-                weights_basic.append(w1)
-                weights_full.append(w2)
-                jitter.append(j)
-                bkg.append(bk)
-                asteroid_mask += ast_mask
-            return (
-                xp.vstack(weights_basic),
-                xp.vstack(weights_full),
-                xp.vstack(jitter),
-                xp.vstack(bkg),
-                asteroid_mask,
+        ok = self.quality_mask(quality_bitmask)
+        if ok.sum() < 50:
+            self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
+        else:
+            self._average_frame = (
+                get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
+                - 1e-6
             )
-
-        ok = (self.quality.astype(int) & (8192 | quality_mask)) == 0
-        w1, w2, j, bk, self.asteroid_mask = run_batch(fnames[ok])
+        self._build_masks(
+            load_image(fnames[test_frame], cutout_size=cutout_size)
+            - self._average_frame
+        )
+        w1, w2, j, bk, self.asteroid_mask = self._run_batches(
+            fnames[ok],
+            self.tstart[ok],
+            batch_size=batch_size,
+            mask_asteroids=mask_asteroids,
+        )
 
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
         self.weights_basic[ok] = w1
@@ -701,5 +767,20 @@ class BackDrop(object):
         self.bkg = np.zeros((len(fnames), bk.shape[1]))
         self.bkg[ok] = bk
         self.bkg[~ok] = np.nan
+        # self._average_frame = load_image(
+        #     fnames[test_frame], cutout_size=cutout_size
+        # ) - self.model(test_frame)
+        # # Mask out the asteroids from the average frame
+        # if mask_asteroids:
+        #     self._average_frame[
+        #         get_asteroid_mask(
+        #             self.sector,
+        #             self.camera,
+        #             self.ccd,
+        #             cutout_size=self.cutout_size,
+        #             times=[self.tstart[test_frame]],
+        #         )
+        #     ] = np.nanmedian(self._average_frame)
+        # self._average_frame += min_frame
         _package_pca_comps(self)
         return self

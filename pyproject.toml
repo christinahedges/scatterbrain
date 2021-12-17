@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scatterbrain"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Christina Hedges <christina.l.hedges@nasa.gov>"]
 
@@ -13,6 +13,9 @@ tqdm = "^4.62.3"
 scipy = "^1.7.1"
 fbpca = "^1.0"
 astropy = "^4.3.1"
+tess-ephem = "^0.3.0"
+tess-locator = "^0.5.0"
+multiprocess = "^0.70.12"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -26,6 +29,10 @@ pytkdocs = {version = "^0.12.0", extras = ["numpy-style"]}
 mkdocs-jupyter = "^0.18.0"
 lightkurve = "^2.0.11"
 tess-locator = "^0.5.0"
+tables = "^3.6.1"
+markdown-include = "^0.6.0"
+mkdocs-include-markdown-plugin = "^3.2.3"
+line-profiler = "^3.3.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

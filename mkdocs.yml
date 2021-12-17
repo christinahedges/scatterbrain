@@ -2,8 +2,11 @@ site_name: scatterbrain
 nav:
     - Home : README.md
     - Design Matrix API: design_matrix.md
-    - BackDrop API: backdrop.md
-    - Demo Notebook: demo.ipynb
+    - ScatteredLightBackground API: background.md
+    - StarScene API: scene.md
+    - Data Flow Diagram : flowchart.md
+    - Making asteroid masks: how-to-get-asteroid-masks.ipynb
+    - Changelog : CHANGES.md
 
 theme:
   name: "material"
@@ -15,8 +18,10 @@ theme:
     accent: blue
 repo_url: https://github.com/christinahedges/scatterbrain
 plugins:
+  - include-markdown
   - search
-  - mkdocs-jupyter
+  - mkdocs-jupyter:
+      execute: False
   - mkdocstrings:
       default_handler: python
       handlers:
@@ -28,3 +33,9 @@ plugins:
       custom_templates: templates
       watch:
         - src/scatterbrain
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

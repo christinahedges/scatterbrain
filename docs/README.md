@@ -5,5 +5,17 @@
 
 # TODO
 
-* add polynomial straps
-* add cholesky solve?
+* Make starscene cupy
+* Add files on Zenodo so we can load them if they aren't local
+* Add docs to asteroid functions
+* Add some tutorials for different use cases
+* Come up with some diagnostics for backdrops/starscenes
+* Check starscenes for multiple sectors
+* Run on supercomputer
+* Investigate using GPUs to run on super computer
+* Increase the asteroid masking depth to mask fainter asteroids?
+* Make asteroid_mask supersampled in time for fast, bright asteroids...?
+
+# NOTES:
+* Consider swapping third order polynomial in StarScene to a low order spline for nicer priors and better variability removal?
+  - Did this, now has the option. Overall, seems better to just use a polynomial.
