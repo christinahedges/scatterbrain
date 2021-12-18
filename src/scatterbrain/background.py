@@ -406,7 +406,7 @@ class ScatteredLightBackground(object):
 
         for l1, l2 in tqdm(
             zip(l[:-1], l[1:]),
-            desc=f"Fitting frames in batches of {batch_size}",
+            desc=f"{self.sector}, {self.camera}, {self.ccd} ",
             total=len(l) - 1,
             leave=True,
             position=0,
@@ -598,6 +598,13 @@ class ScatteredLightBackground(object):
         if dir != "":
             if not os.path.isdir(dir):
                 raise ValueError("No solutions exist")
+        if not os.path.isfile(dir + fname):
+            if os.path.isfile(
+                dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/" + fname
+            ):
+                dir = dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
+            else:
+                raise ValueError("No files exist")
 
         with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
             for key in [

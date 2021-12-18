@@ -61,6 +61,7 @@ class StarScene:
     batch_size: int = 512
     spline: bool = False
     ncomps: int = 10
+    dir: Optional = None
 
     def __post_init__(self):
         if (self.row is None) | (self.column is None):
@@ -77,6 +78,7 @@ class StarScene:
             ccd=self.ccd,
             row=np.asarray([1]),
             column=np.asarray([1]),
+            dir=self.dir,
         )
         self.break_point = np.where(
             (
@@ -252,7 +254,7 @@ class StarScene:
 
     @staticmethod
     def from_tess_images(
-        fnames, sector=None, camera=None, ccd=None, batch_size=512, plot=False
+        fnames, sector=None, camera=None, ccd=None, batch_size=512, plot=False, dir=None
     ):
         """Class to remove stars from TESS images
 
@@ -271,7 +273,9 @@ class StarScene:
             the more memory fitting will take. 512 is a sane default.
         """
         fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
-        self = StarScene(sector=sector, camera=camera, ccd=ccd, batch_size=batch_size)
+        self = StarScene(
+            sector=sector, camera=camera, ccd=ccd, batch_size=batch_size, dir=dir
+        )
         self.fit_model(fnames=fnames, batch_size=batch_size)
         if plot:
             fig = self.diagnose(fnames)
@@ -571,7 +575,7 @@ class StarScene:
 
     def fit_model(self, fnames, batch_size=512):
         """Fit a StarScene model to a set of TESS filenames"""
-        for loc in tqdm(self.locs):
+        for loc in tqdm(self.locs, desc=f"{self.sector}, {self.camera}, {self.ccd} "):
             self._fill_weights_block(fnames=fnames, loc=loc)
         for idx in range(2):
             self.bad_pixels[idx] |= (
