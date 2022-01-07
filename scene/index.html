@@ -14,7 +14,7 @@
     
     
       
-        <title>BackDrop API - scatterbrain</title>
+        <title>StarScene API - scatterbrain</title>
       
     
     
@@ -67,7 +67,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#documentation-for-design_matrix" class="md-skip">
+        <a href="#documentation-for-starscene" class="md-skip">
           Skip to content
         </a>
       
@@ -99,7 +99,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              BackDrop API
+              StarScene API
             
           </span>
         </div>
@@ -240,6 +240,21 @@
 
   
   
+  
+    <li class="md-nav__item">
+      <a href="../background/" class="md-nav__link">
+        ScatteredLightBackground API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
     
   
   
@@ -252,12 +267,12 @@
       
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
-          BackDrop API
+          StarScene API
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
-        BackDrop API
+        StarScene API
       </a>
       
         
@@ -275,71 +290,64 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop" class="md-nav__link">
-    BackDrop
+  <a href="#scatterbrain.scene.StarScene" class="md-nav__link">
+    StarScene
   </a>
   
-    <nav class="md-nav" aria-label="BackDrop">
+    <nav class="md-nav" aria-label="StarScene">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.__init__" class="md-nav__link">
-    __init__()
+  <a href="#scatterbrain.scene.StarScene.locs" class="md-nav__link">
+    locs
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.clean" class="md-nav__link">
-    clean()
+  <a href="#scatterbrain.scene.StarScene.__getitem__" class="md-nav__link">
+    __getitem__()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_frame" class="md-nav__link">
-    fit_frame()
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_model" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.fit_model" class="md-nav__link">
     fit_model()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_model_batched" class="md-nav__link">
-    fit_model_batched()
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.from_tess_images" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.from_tess_images" class="md-nav__link">
     from_tess_images()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.load" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.get_images" class="md-nav__link">
+    get_images()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.scene.StarScene.load" class="md-nav__link">
     load()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.model" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.model" class="md-nav__link">
     model()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.save" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.save" class="md-nav__link">
     save()
   </a>
   
@@ -366,8 +374,38 @@
   
   
     <li class="md-nav__item">
-      <a href="../demo/" class="md-nav__link">
-        Demo notebook for scatterbrain
+      <a href="../flowchart/" class="md-nav__link">
+        Data Flow Diagram
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-to-get-asteroid-masks/" class="md-nav__link">
+        How to obtain asteroid mask files
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CHANGES/" class="md-nav__link">
+        Changelog
       </a>
     </li>
   
@@ -399,71 +437,64 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop" class="md-nav__link">
-    BackDrop
+  <a href="#scatterbrain.scene.StarScene" class="md-nav__link">
+    StarScene
   </a>
   
-    <nav class="md-nav" aria-label="BackDrop">
+    <nav class="md-nav" aria-label="StarScene">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.__init__" class="md-nav__link">
-    __init__()
+  <a href="#scatterbrain.scene.StarScene.locs" class="md-nav__link">
+    locs
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.clean" class="md-nav__link">
-    clean()
+  <a href="#scatterbrain.scene.StarScene.__getitem__" class="md-nav__link">
+    __getitem__()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_frame" class="md-nav__link">
-    fit_frame()
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_model" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.fit_model" class="md-nav__link">
     fit_model()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.fit_model_batched" class="md-nav__link">
-    fit_model_batched()
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.from_tess_images" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.from_tess_images" class="md-nav__link">
     from_tess_images()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.load" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.get_images" class="md-nav__link">
+    get_images()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scatterbrain.scene.StarScene.load" class="md-nav__link">
     load()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.model" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.model" class="md-nav__link">
     model()
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#scatterbrain.backdrop.BackDrop.save" class="md-nav__link">
+  <a href="#scatterbrain.scene.StarScene.save" class="md-nav__link">
     save()
   </a>
   
@@ -486,63 +517,37 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/christinahedges/scatterbrain/edit/master/docs/backdrop.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/christinahedges/scatterbrain/edit/master/docs/scene.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="documentation-for-design_matrix">Documentation for <code>design_matrix</code></h1>
+                <h1 id="documentation-for-starscene">Documentation for <code>StarScene</code></h1>
 
 
   <div class="doc doc-object doc-class">
 
 
 
-<h2 id="scatterbrain.backdrop.BackDrop" class="doc doc-heading">
+<h2 id="scatterbrain.scene.StarScene" class="doc doc-heading">
         <code>
-scatterbrain.backdrop.BackDrop        </code>
+scatterbrain.scene.StarScene        </code>
 
 
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-dataclass"><code>dataclass</code></small>
+  </span>
 
 </h2>
 
     <div class="doc doc-contents first">
 
-      <p>Class for working with TESS data to fit and use scattered background models.</p>
-<p>BackDrop will automatically set up a reasonable background model for you. If you
-want to tweak the model, check out the <code>design_matrix</code> API.</p>
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-  <div class="doc doc-object doc-method">
-
-
-
-<h3 id="scatterbrain.backdrop.BackDrop.__init__" class="doc doc-heading">
-<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sector</span><span class="p">,</span> <span class="n">camera</span><span class="p">,</span> <span class="n">ccd</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sigma_f</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nknots</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span> <span class="n">tstart</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tstop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quality</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
-
-  <span class="doc doc-properties">
-      <small class="doc doc-property doc-property-special"><code>special</code></small>
-  </span>
-
-</h3>
-
-    <div class="doc doc-contents ">
-
-      <p>Initialize a <code>BackDrop</code> object either for fitting or loading a model.</p>
+      <p>Class to remove stars and jitter noise from TESS images.</p>
+<p>This class will take a stack of TESS FFIs, and will use the ScatteredLightBackground
+class to remove scattered light from the images. The ScatteredLightBackground also
+provides an estimate of the "jitter" in pixels as the top principal components of
+bright pixels in the dataset, and the average image. StarScene takes these components
+and fits each individual pixel time series</p>
 
 <p><strong>Parameters:</strong></p>
 <table>
@@ -558,217 +563,135 @@ want to tweak the model, check out the <code>design_matrix</code> API.</p>
       <tr>
         <td><code>sector</code></td>
         <td><code>int</code></td>
-        <td><p>Sector number</p></td>
+        <td><p>TESS sector number</p></td>
         <td><em>required</em></td>
       </tr>
       <tr>
         <td><code>camera</code></td>
         <td><code>int</code></td>
-        <td><p>Camera number</p></td>
+        <td><p>TESS camera number</p></td>
         <td><em>required</em></td>
       </tr>
       <tr>
         <td><code>ccd</code></td>
         <td><code>int</code></td>
-        <td><p>CCD number</p></td>
-        <td><em>required</em></td>
-      </tr>
-      <tr>
-        <td><code>column</code></td>
-        <td><code>None or xp.ndarray</code></td>
-        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
-        <td><code>None</code></td>
-      </tr>
-      <tr>
-        <td><code>row</code></td>
-        <td><code>None or xp.ndarray</code></td>
-        <td><p>The column numbers to evaluate the design matrix at. If None, uses all pixels.</p></td>
-        <td><code>None</code></td>
-      </tr>
-      <tr>
-        <td><code>sigma_f</code></td>
-        <td><code>xp.ndarray</code></td>
-        <td><p>The weights for each pixel in the design matrix. Default is equal weights.</p></td>
-        <td><code>None</code></td>
-      </tr>
-      <tr>
-        <td><code>nknots</code></td>
-        <td><code>int</code></td>
-        <td><p>Number of knots to for spline matrix</p></td>
-        <td><code>40</code></td>
-      </tr>
-      <tr>
-        <td><code>cutout_size</code></td>
-        <td><code>int</code></td>
-        <td><p>Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality</p></td>
-        <td><code>2048</code></td>
-      </tr>
-  </tbody>
-</table>
-    </div>
-
-  </div>
-
-
-
-
-  <div class="doc doc-object doc-method">
-
-
-
-<h3 id="scatterbrain.backdrop.BackDrop.clean" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">clean</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></code>
-
-
-</h3>
-
-    <div class="doc doc-contents ">
-
-      <p>Resets the weights and average frame</p>
-
-    </div>
-
-  </div>
-
-
-
-  <div class="doc doc-object doc-method">
-
-
-
-<h3 id="scatterbrain.backdrop.BackDrop.fit_frame" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">fit_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span></code>
-
-
-</h3>
-
-    <div class="doc doc-contents ">
-
-      <p>Fit a single frame of TESS data.</p>
-<p>This will append to the list properties <code>self.weights_basic</code>, <code>self.weights_full</code>, <code>self.jitter</code>.</p>
-
-<p><strong>Parameters:</strong></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Default</th>
-    </tr>
-  </thead>
-  <tbody>
-      <tr>
-        <td><code>frame</code></td>
-        <td><code>np.ndarray</code></td>
-        <td><p>2D array of values, must be shape
-<code>(self.cutout_size, self.cutout_size)</code></p></td>
-        <td><em>required</em></td>
-      </tr>
-  </tbody>
-</table>
-    </div>
-
-  </div>
-
-
-
-  <div class="doc doc-object doc-method">
-
-
-
-<h3 id="scatterbrain.backdrop.BackDrop.fit_model" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">fit_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flux_cube</span><span class="p">,</span> <span class="n">test_frame</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
-
-
-</h3>
-
-    <div class="doc doc-contents ">
-
-      <p>Fit a model to a flux cube, fitting each frame individually</p>
-<p>This will append to the list properties <code>self.weights_basic</code>, <code>self.weights_full</code>, <code>self.jitter</code>.</p>
-
-<p><strong>Parameters:</strong></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Default</th>
-    </tr>
-  </thead>
-  <tbody>
-      <tr>
-        <td><code>flux_cube</code></td>
-        <td><code>xp.ndarray or list</code></td>
-        <td><p>3D array of frames.</p></td>
-        <td><em>required</em></td>
-      </tr>
-      <tr>
-        <td><code>test_frame</code></td>
-        <td><code>int</code></td>
-        <td><p>The index of the frame to use as the "reference frame".
-This reference frame will be used to build masks to set <code>sigma_f</code>.
-It should be the lowest background frame.</p></td>
-        <td><code>0</code></td>
-      </tr>
-  </tbody>
-</table>
-    </div>
-
-  </div>
-
-
-
-  <div class="doc doc-object doc-method">
-
-
-
-<h3 id="scatterbrain.backdrop.BackDrop.fit_model_batched" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">fit_model_batched</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flux_cube</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">test_frame</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></code>
-
-
-</h3>
-
-    <div class="doc doc-contents ">
-
-      <p>Fit a model to a flux cube, fitting frames in batches of size <code>batch_size</code>.</p>
-<p>This will append to the list properties <code>self.weights_basic</code>, <code>self.weights_full</code>, <code>self.jitter</code>.</p>
-
-<p><strong>Parameters:</strong></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Description</th>
-      <th>Default</th>
-    </tr>
-  </thead>
-  <tbody>
-      <tr>
-        <td><code>flux_cube</code></td>
-        <td><code>xp.ndarray</code></td>
-        <td><p>3D array of frames.</p></td>
+        <td><p>TESS CCD number</p></td>
         <td><em>required</em></td>
       </tr>
       <tr>
         <td><code>batch_size</code></td>
         <td><code>int</code></td>
-        <td><p>Number of frames to fit at once.</p></td>
-        <td><code>50</code></td>
+        <td><p>This will process the fits images in "batches". The larger the batch_size,
+the more memory fitting will take. 512 is a sane default.</p></td>
+        <td><code>&#39;.&#39;</code></td>
       </tr>
       <tr>
-        <td><code>test_frame</code></td>
+        <td><code>spline</code></td>
+        <td><code>bool</code></td>
+        <td><p>Whether to correct time with a spline. If False, will use a 2nd order polynomial.
+If True, will use a 40 knot spline for every pixel.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>ncomps</code></td>
         <td><code>int</code></td>
-        <td><p>The index of the frame to use as the "reference frame".
-This reference frame will be used to build masks to set <code>sigma_f</code>.
-It should be the lowest background frame.</p></td>
-        <td><code>0</code></td>
+        <td><p>Number of components from the background model to use. Default is 15. Maximum is 20.</p></td>
+        <td><code>&#39;15.&#39;</code></td>
       </tr>
   </tbody>
 </table>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="scatterbrain.scene.StarScene.locs" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">locs</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-property"><code>property</code></small>
+      <small class="doc doc-property doc-property-readonly"><code>readonly</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>The locations of each of the cutouts. List of lists. Format is</p>
+<p>[[mininmum row, maxmimum row], [minimum column, maximum column]]</p>
+    </div>
+
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.scene.StarScene.__getitem__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Set indexing</p>
+
+    </div>
+
+  </div>
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.scene.StarScene.fit_model" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">fit_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fnames</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">512</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Fit a StarScene model to a set of TESS filenames</p>
+
     </div>
 
   </div>
@@ -780,8 +703,8 @@ It should be the lowest background frame.</p></td>
 
 
 
-<h3 id="scatterbrain.backdrop.BackDrop.from_tess_images" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">from_tess_images</span><span class="p">(</span><span class="n">fnames</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">test_frame</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cutout_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">camera</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<h3 id="scatterbrain.scene.StarScene.from_tess_images" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">from_tess_images</span><span class="p">(</span><span class="n">fnames</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">camera</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ccd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
   <span class="doc doc-properties">
       <small class="doc doc-property doc-property-staticmethod"><code>staticmethod</code></small>
@@ -791,7 +714,7 @@ It should be the lowest background frame.</p></td>
 
     <div class="doc doc-contents ">
 
-      <p>Creates a backdrop model from filenames</p>
+      <p>Class to remove stars from TESS images</p>
 
 <p><strong>Parameters:</strong></p>
 <table>
@@ -806,38 +729,35 @@ It should be the lowest background frame.</p></td>
   <tbody>
       <tr>
         <td><code>fnames</code></td>
-        <td><code>list</code></td>
-        <td><p>List of filenames to compute the background model for</p></td>
+        <td><code>list of str</code></td>
+        <td><p>File names to use to build the object</p></td>
         <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>sector</code></td>
+        <td><code>int</code></td>
+        <td><p>TESS sector number</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>camera</code></td>
+        <td><code>int</code></td>
+        <td><p>TESS camera number</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>ccd</code></td>
+        <td><code>int</code></td>
+        <td><p>TESS CCD number</p></td>
+        <td><code>None</code></td>
       </tr>
       <tr>
         <td><code>batch_size</code></td>
         <td><code>int</code></td>
-        <td><p>Number of files to process in a given batch</p></td>
-        <td><code>50</code></td>
+        <td><p>This will process the fits images in "cutouts". The larger the cutout,
+the more memory fitting will take. 512 is a sane default.</p></td>
+        <td><code>512</code></td>
       </tr>
-      <tr>
-        <td><code>test_frame</code></td>
-        <td><code>None or int</code></td>
-        <td><p>The frame to use as a "test" frame for building masks.
-If None, a reasonable frame will be chosen.</p></td>
-        <td><code>None</code></td>
-      </tr>
-  </tbody>
-</table>
-<p><strong>Returns:</strong></p>
-<table>
-  <thead>
-    <tr>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>`scatterbrain.backdrop.BackDrop`</code></td>
-      <td><p>BackDrop object</p></td>
-    </tr>
   </tbody>
 </table>
     </div>
@@ -851,7 +771,60 @@ If None, a reasonable frame will be chosen.</p></td>
 
 
 
-<h3 id="scatterbrain.backdrop.BackDrop.load" class="doc doc-heading">
+<h3 id="scatterbrain.scene.StarScene.get_images" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">get_images</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fnames</span><span class="p">,</span> <span class="n">loc</span><span class="p">,</span> <span class="n">orbit</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+
+</h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Load the TESS FFIs, remove the best fitting scattered light model, and</p>
+<p>the best "average" frame, and return as an array.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>fnames</code></td>
+        <td><code>list of str</code></td>
+        <td><p>File names to use to build the object</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>loc</code></td>
+        <td><code>list of lists</code></td>
+        <td><p>Location of the cut out in format [[min row, max row], [min col, max col]]</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>orbit</code></td>
+        <td><code>int, [1 or 2]</code></td>
+        <td><p>Which orbit to get</p></td>
+        <td><code>1</code></td>
+      </tr>
+  </tbody>
+</table>
+    </div>
+
+  </div>
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="scatterbrain.scene.StarScene.load" class="doc doc-heading">
 <code class="highlight language-python"><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 
@@ -859,7 +832,7 @@ If None, a reasonable frame will be chosen.</p></td>
 
     <div class="doc doc-contents ">
 
-      <p>Load a model fit to the tess-backrop data directory.</p>
+      <p>Load a model fit from the data directory.</p>
 
 <p><strong>Parameters:</strong></p>
 <table>
@@ -897,19 +870,68 @@ a file name in <code>dir</code> to load</p></td>
 
 
 
-<h3 id="scatterbrain.backdrop.BackDrop.model" class="doc doc-heading">
-<code class="highlight language-python"><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_index</span><span class="p">)</span></code>
+<h3 id="scatterbrain.scene.StarScene.model" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time_indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask_bad_pixels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">trend</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
 
 
 </h3>
 
     <div class="doc doc-contents ">
 
-      <p>Build a model for a frame with index <code>time_index</code></p>
+      <p>Returns a model for a given row and column.</p>
 
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>row</code></td>
+        <td><code>np.ndarray</code></td>
+        <td><p>Row to evaluate at</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>column</code></td>
+        <td><code>np.ndarray</code></td>
+        <td><p>Column to evaluate at</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>time_indices</code></td>
+        <td><code>None, int, list of int</code></td>
+        <td><p>Which indices to evaluate the model at. If None will use all.</p></td>
+        <td><code>None</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>np.ndarray</code></td>
+      <td><p>Array of shape (time_indices, row, column) which has the full scene
+model, including scattered light.</p></td>
+    </tr>
+  </tbody>
+</table>
     </div>
 
   </div>
+
+
 
 
 
@@ -917,7 +939,7 @@ a file name in <code>dir</code> to load</p></td>
 
 
 
-<h3 id="scatterbrain.backdrop.BackDrop.save" class="doc doc-heading">
+<h3 id="scatterbrain.scene.StarScene.save" class="doc doc-heading">
 <code class="highlight language-python"><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 
@@ -925,12 +947,11 @@ a file name in <code>dir</code> to load</p></td>
 
     <div class="doc doc-contents ">
 
-      <p>Save a model fit to the scatterbrain data directory.</p>
+      <p>Save a StarScene</p>
 
     </div>
 
   </div>
-
 
 
 
@@ -960,7 +981,7 @@ a file name in <code>dir</code> to load</p></td>
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
         
-        <a href="../design_matrix/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Design Matrix API" rel="prev">
+        <a href="../background/" class="md-footer__link md-footer__link--prev" aria-label="Previous: ScatteredLightBackground API" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -969,20 +990,20 @@ a file name in <code>dir</code> to load</p></td>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Design Matrix API
+              ScatteredLightBackground API
             </div>
           </div>
         </a>
       
       
         
-        <a href="../demo/" class="md-footer__link md-footer__link--next" aria-label="Next: Demo notebook for scatterbrain" rel="next">
+        <a href="../flowchart/" class="md-footer__link md-footer__link--next" aria-label="Next: Data Flow Diagram" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Demo notebook for scatterbrain
+              Data Flow Diagram
             </div>
           </div>
           <div class="md-footer__button md-icon">
