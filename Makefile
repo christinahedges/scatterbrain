@@ -5,7 +5,7 @@ PYMODULE:=src
 TESTS:=tests
 
 # Run all the checks which do not change files
-all: pytest flake8 black isort
+all: flake8 black isort pytest
 
 # Run the unit tests using `pytest`
 pytest:

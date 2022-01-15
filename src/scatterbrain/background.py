@@ -1,3 +1,4 @@
+import logging
 import os
 from copy import deepcopy
 
@@ -7,23 +8,15 @@ from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, np, xp
-from .designmatrix import (
-    cartesian_design_matrix,
-    radial_spline_design_matrix,
-    spline_design_matrix,
-    strap_design_matrix,
-)
-from .utils import (
-    _align_with_tpf,
-    _package_pca_comps,
-    _validate_inputs,
-    get_asteroid_mask,
-    get_min_image_from_filenames,
-    get_sat_mask,
-    get_star_mask,
-    identify_bad_frames,
-)
+from .designmatrix import (cartesian_design_matrix,
+                           radial_spline_design_matrix, spline_design_matrix,
+                           strap_design_matrix)
+from .utils import (_align_with_tpf, _package_pca_comps, _validate_inputs,
+                    get_asteroid_mask, get_min_image_from_filenames,
+                    get_sat_mask, get_star_mask, identify_bad_frames)
 from .version import __version__
+
+log = logging.getLogger(__name__)
 
 
 class ScatteredLightBackground(object):
@@ -71,7 +64,7 @@ class ScatteredLightBackground(object):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
-
+        log.debug("Initializing `ScatteredLightBackground` Object")
         self.sector = sector
         self.camera = camera
         self.ccd = ccd
@@ -158,6 +151,7 @@ class ScatteredLightBackground(object):
         self.tstart = tstart
         self.tstop = tstop
         self.quality = quality
+        log.debug("Initialized `ScatteredLightBackground` Object")
 
     def update_sigma_f(self, sigma_f):
         self.A1.update_sigma_f(sigma_f)
@@ -328,15 +322,18 @@ class ScatteredLightBackground(object):
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
         # weights = list(self.A1.fit_batch(xp.log10(flux)))
+        log.debug("Fitting basic DM batched")
         return self.A1.fit_batch(xp.log10(flux))
 
     def _fit_full_batch(self, flux):
         """Fit the second design matrix, in a batched mode"""
         #        weights = list(self.A2.fit_batch(flux))
+        log.debug("Fitting full DM batched")
         return self.A2.fit_batch(flux)
 
     def _fit_batch(self, flux_cube, times=None, mask_asteroids=True):
         """Fit the both design matrices, in a batched mode"""
+        log.debug(f"Fitting batch, mask_asteroids={mask_asteroids}")
         if mask_asteroids:
             if times is None:
                 raise ValueError("Need times to mask asteroids")
@@ -350,6 +347,7 @@ class ScatteredLightBackground(object):
             )
         weights_full = self._fit_full_batch(flux_cube)
 
+        log.debug("Obtaining jitter cube")
         jitter, bkg = [], []
         for tdx in range(len(weights_full)):
             flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
@@ -363,6 +361,7 @@ class ScatteredLightBackground(object):
             flux_cube[tdx] += xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
+        log.debug("Batch done")
         return weights_basic, weights_full, jitter, bkg, ast_mask
 
     def _run_batches(self, input, tstart=None, batch_size=25, mask_asteroids=True):
@@ -411,6 +410,7 @@ class ScatteredLightBackground(object):
             leave=True,
             position=0,
         ):
+            log.debug(f"Running batch {l1}:{l2}")
             if isinstance(input, (np.ndarray, list)) & isinstance(input[0], str):
                 flux_cube = [
                     load_image(input[idx], cutout_size=self.cutout_size)
@@ -544,6 +544,8 @@ class ScatteredLightBackground(object):
 
     def save(self, output_dir=None, overwrite=False):
         """Save a model fit to the scatterbrain data directory."""
+        log.debug("Packaging data for save")
+
         if not hasattr(self, "weights_basic"):
             raise ValueError("There is no model to save")
         self.hdu0 = fits.PrimaryHDU()
@@ -565,7 +567,9 @@ class ScatteredLightBackground(object):
         fname = (
             f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
+        log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
+        log.debug("Saved")
 
     def load(self, input, dir=None):
         """
@@ -605,6 +609,7 @@ class ScatteredLightBackground(object):
                 dir = dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
             else:
                 raise ValueError("No files exist")
+        log.debug(f"Loading ScatteredLightBackground from {dir+fname}")
 
         with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
             for key in [
@@ -699,9 +704,13 @@ class ScatteredLightBackground(object):
         b : `scatterbrain.ScatteredLightBackground.ScatteredLightBackground`
             ScatteredLightBackground object
         """
+        log.debug("Building `ScatteredLightBackground` from TESS images")
+
         fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
 
+        log.debug("Identifying bad frames")
         blown_out_frames = identify_bad_frames(fnames)
+        log.debug("Identifying bad frames")
         # make a ScatteredLightBackground object
         self = ScatteredLightBackground(
             sector=sector,
@@ -724,7 +733,9 @@ class ScatteredLightBackground(object):
         )
         self.quality[blown_out_frames] |= 8192
         # Step 1: find a good test frame
+        log.debug("Building average frame")
         if test_frame is None:
+            log.debug("Finding a good test frame")
             a1, a2 = (
                 np.min([self.A1.bore_pixel[0], 2047]),
                 44 + np.min([self.A1.bore_pixel[1], 0]),
@@ -751,17 +762,19 @@ class ScatteredLightBackground(object):
                 get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
                 - 1e-6
             )
+        log.debug("Building source masks")
         self._build_masks(
             load_image(fnames[test_frame], cutout_size=cutout_size)
             - self._average_frame
         )
+        log.debug("Running batches")
         w1, w2, j, bk, self.asteroid_mask = self._run_batches(
             fnames[ok],
             self.tstart[ok],
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
         )
-
+        log.debug("Assigning values")
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
         self.weights_basic[ok] = w1
         self.weights_basic[~ok] = np.nan
@@ -774,20 +787,6 @@ class ScatteredLightBackground(object):
         self.bkg = np.zeros((len(fnames), bk.shape[1]))
         self.bkg[ok] = bk
         self.bkg[~ok] = np.nan
-        # self._average_frame = load_image(
-        #     fnames[test_frame], cutout_size=cutout_size
-        # ) - self.model(test_frame)
-        # # Mask out the asteroids from the average frame
-        # if mask_asteroids:
-        #     self._average_frame[
-        #         get_asteroid_mask(
-        #             self.sector,
-        #             self.camera,
-        #             self.ccd,
-        #             cutout_size=self.cutout_size,
-        #             times=[self.tstart[test_frame]],
-        #         )
-        #     ] = np.nanmedian(self._average_frame)
-        # self._average_frame += min_frame
+        log.debug("Packaging PCA components")
         _package_pca_comps(self)
         return self

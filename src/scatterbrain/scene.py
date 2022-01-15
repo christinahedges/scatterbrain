@@ -1,3 +1,4 @@
+import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass
@@ -12,15 +13,11 @@ from tqdm import tqdm
 from . import PACKAGEDIR
 from .background import ScatteredLightBackground
 from .cupy_numpy_imports import load_image, xp
-from .utils import (
-    _align_with_tpf,
-    _spline_basis_vector,
-    _validate_inputs,
-    get_asteroid_locations,
-    get_locs,
-    minmax,
-)
+from .utils import (_align_with_tpf, _spline_basis_vector, _validate_inputs,
+                    get_asteroid_locations, get_locs, minmax)
 from .version import __version__
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -72,6 +69,7 @@ class StarScene:
             self.column = np.atleast_1d(self.column)
 
         self.ncomps = np.min([self.ncomps, 20])
+        log.debug("Loading ScatteredLightBackground")
         self.background = ScatteredLightBackground.from_disk(
             sector=self.sector,
             camera=self.camera,
@@ -80,6 +78,7 @@ class StarScene:
             column=np.asarray([1]),
             dir=self.dir,
         )
+        log.debug("Loaded ScatteredLightBackground")
         self.break_point = np.where(
             (
                 np.diff(self.background.tstart)
@@ -91,6 +90,7 @@ class StarScene:
             np.arange(len(self.background.tstart)) <= self.break_point,
             np.arange(len(self.background.tstart)) > self.break_point,
         ]
+        log.debug("Building design matrices")
         if self.spline:
             self.Xs = [
                 self._get_spline_design_matrix(
@@ -105,6 +105,7 @@ class StarScene:
                 self._get_design_matrix(self.orbit_masks[0], ncomps=self.ncomps),
                 self._get_design_matrix(self.orbit_masks[1], ncomps=self.ncomps),
             ]
+        log.debug("Built")
 
         self.weights = [
             np.zeros(
@@ -272,10 +273,12 @@ class StarScene:
             This will process the fits images in "cutouts". The larger the cutout,
             the more memory fitting will take. 512 is a sane default.
         """
+        log.debug("Building StarScene from TESS images")
         fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
         self = StarScene(
             sector=sector, camera=camera, ccd=ccd, batch_size=batch_size, dir=dir
         )
+        log.debug("Fitting StarScene model")
         self.fit_model(fnames=fnames, batch_size=batch_size)
         if plot:
             fig = self.diagnose(fnames)
@@ -350,7 +353,7 @@ class StarScene:
         if dir != "":
             if not os.path.isdir(dir):
                 raise ValueError("No solutions exist")
-
+        log.debug(f"Loading StarScene from {dir+fname}")
         with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
             for key in [
                 "sector",
@@ -406,6 +409,7 @@ class StarScene:
 
     def save(self, output_dir=None, overwrite=False):
         """Save a StarScene"""
+        log.debug("Packaging data for save")
         self.hdu0 = fits.PrimaryHDU()
         self.hdu0.header["ORIGIN"] = "scatterbrain"
         self.hdu0.header["AUTHOR"] = "christina.l.hedges@nasa.gov"
@@ -425,7 +429,9 @@ class StarScene:
         fname = (
             f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
+        log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
+        log.debug("Saved")
         return
 
     def get_images(self, fnames, loc, orbit=1):
@@ -527,9 +533,12 @@ class StarScene:
             Whether to iterate the fit. If True, will repeat the fit, masking
             the largest values in each pixel time series.
         """
+        log.debug("Filling weight block")
         for orbit in [1, 2]:
+            log.debug(f"Orbit {orbit}: loading images")
             y = self.get_images(fnames, loc, orbit=orbit)
 
+            log.debug(f"Orbit {orbit}: masking asteroids")
             self._mask_asteroids(y, loc=loc, orbit=orbit)
             s = (y.shape[0], np.product(y.shape[1:]))
             X = self.Xs[orbit - 1][
@@ -545,6 +554,7 @@ class StarScene:
                 m.sum(axis=0) / y.shape[0]
             ) >= 0.05
 
+            log.debug(f"Orbit {orbit}: fitting model")
             if iter:
                 # res[
                 #     sigma_clip(
@@ -577,6 +587,7 @@ class StarScene:
         """Fit a StarScene model to a set of TESS filenames"""
         for loc in tqdm(self.locs, desc=f"{self.sector}, {self.camera}, {self.ccd} "):
             self._fill_weights_block(fnames=fnames, loc=loc)
+        log.debug("Inflating bad pixels")
         for idx in range(2):
             self.bad_pixels[idx] |= (
                 np.asarray(np.gradient(self.bad_pixels[idx].astype(float))) != 0
