@@ -1,4 +1,5 @@
 """basic utility functions"""
+import logging
 import warnings
 
 import fitsio
@@ -16,6 +17,8 @@ from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, xp
+
+log = logging.getLogger(__name__)
 
 
 def _align_with_tpf(object, tpf):
@@ -305,6 +308,7 @@ def _validate_inputs(fnames, sector, camera, ccd):
             ccd = fitsio.read_header(fnames[0], ext=1)["CCD"]
         except ValueError:
             raise ValueError("Can not find a CCD number")
+    log.debug(f"Validated inputs for sector{sector}, camera{camera}, ccd{ccd}")
     return fnames, sector, camera, ccd
 
 

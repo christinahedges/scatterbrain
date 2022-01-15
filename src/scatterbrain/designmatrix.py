@@ -1,9 +1,12 @@
 """Class for working with design matrices"""
+import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
 from .cupy_numpy_imports import sparse, xp
 from .utils import _spline_basis_vector
+
+log = logging.getLogger(__name__)
 
 
 class design_matrix(ABC):
@@ -318,6 +321,7 @@ class cartesian_design_matrix(TESS_design_matrix):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
+        log.debug("Initializing `cartesian_design_matrix`")
         self.npoly = npoly
         super().__init__(
             name="cartesian",
@@ -375,6 +379,7 @@ class radial_design_matrix(TESS_design_matrix):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
+        log.debug("Initializing `radial_design_matrix`")
         self.npoly = npoly
         super().__init__(
             name="radial",
@@ -440,6 +445,7 @@ class radial_spline_design_matrix(TESS_design_matrix):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
+        log.debug("Initializing `radial_spline_design_matrix`")
         self.nknots = nknots
         super().__init__(
             name="radial",
@@ -503,6 +509,7 @@ class strap_design_matrix(TESS_design_matrix):
         npoly : int
             Polynomial order for the strap model
         """
+        log.debug("Initializing `strap_design_matrix`")
         self.npoly = npoly
         super().__init__(
             name="strap",
@@ -606,6 +613,7 @@ class spline_design_matrix(TESS_design_matrix):
         cutout_size : int
                 Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
         """
+        log.debug("Initializing `spline_design_matrix`")
         self.degree = degree
         self.nknots = nknots
         super().__init__(
