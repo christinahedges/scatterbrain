@@ -13,14 +13,8 @@ from tqdm import tqdm
 from . import PACKAGEDIR
 from .background import ScatteredLightBackground
 from .cupy_numpy_imports import load_image, xp
-from .utils import (
-    _align_with_tpf,
-    _spline_basis_vector,
-    _validate_inputs,
-    get_asteroid_locations,
-    get_locs,
-    minmax,
-)
+from .utils import (_align_with_tpf, _spline_basis_vector, _validate_inputs,
+                    get_asteroid_locations, get_locs, minmax)
 from .version import __version__
 
 log = logging.getLogger(__name__)
