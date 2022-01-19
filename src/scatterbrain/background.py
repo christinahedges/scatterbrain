@@ -1,10 +1,10 @@
 import logging
 import os
 from copy import deepcopy
-from multiprocessing import Pool, cpu_count
 
 import fitsio
 from astropy.io import fits
+from tqdm import tqdm
 
 from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, np, xp
@@ -332,15 +332,18 @@ class ScatteredLightBackground(object):
     def _fit_basic_batch(self, flux):
         """Fit the first design matrix, in a batched mode"""
         # weights = list(self.A1.fit_batch(xp.log10(flux)))
+        log.debug("Fitting basic DM batched")
         return self.A1.fit_batch(xp.log10(flux))
 
     def _fit_full_batch(self, flux):
         """Fit the second design matrix, in a batched mode"""
         #        weights = list(self.A2.fit_batch(flux))
+        log.debug("Fitting full DM batched")
         return self.A2.fit_batch(flux)
 
-    def _fit_batch(self, flux_cube, times=None, mask_asteroids=False):
+    def _fit_batch(self, flux_cube, times=None, mask_asteroids=True):
         """Fit the both design matrices, in a batched mode"""
+        log.debug(f"Fitting batch, mask_asteroids={mask_asteroids}")
         if mask_asteroids:
             if times is None:
                 raise ValueError("Need times to mask asteroids")
@@ -354,6 +357,7 @@ class ScatteredLightBackground(object):
             )
         weights_full = self._fit_full_batch(flux_cube)
 
+        log.debug("Obtaining jitter cube")
         jitter, bkg = [], []
         for tdx in range(len(weights_full)):
             flux_cube[tdx] -= self.A2.dot(weights_full[tdx]).reshape(self.shape)
@@ -367,11 +371,10 @@ class ScatteredLightBackground(object):
             flux_cube[tdx] += xp.power(10, self.A1.dot(weights_basic[tdx])).reshape(
                 self.shape
             )
+        log.debug("Batch done")
         return weights_basic, weights_full, jitter, bkg, ast_mask
 
-    def _run_batches(
-        self, input, tstart=None, batch_size=25, mask_asteroids=True, multiprocess=True
-    ):
+    def _run_batches(self, input, tstart=None, batch_size=25, mask_asteroids=True):
         """
         Fit the model in batches, cutting the data into appropriate batch sizes.
 
@@ -410,9 +413,14 @@ class ScatteredLightBackground(object):
             l[-1] = len(input)
         asteroid_mask = np.zeros((self.cutout_size, self.cutout_size), dtype=int)
 
-        cubes = []
-        times = []
-        for l1, l2 in zip(l[:-1], l[1:]):
+        for l1, l2 in tqdm(
+            zip(l[:-1], l[1:]),
+            desc=f"{self.sector}, {self.camera}, {self.ccd} ",
+            total=len(l) - 1,
+            leave=True,
+            position=0,
+        ):
+            log.debug(f"Running batch {l1}:{l2}")
             if isinstance(input, (np.ndarray, list)) & isinstance(input[0], str):
                 flux_cube = [
                     load_image(input[idx], cutout_size=self.cutout_size)
@@ -425,39 +433,24 @@ class ScatteredLightBackground(object):
                 flux_cube = [i - self._average_frame for i in input[l1:l2]]
             else:
                 raise ValueError("Can not parse input.")
-            cubes.append(flux_cube)
-            if tstart is not None:
-                times.append(tstart[l1:l2])
-            else:
-                times.append(None)
 
-        if multiprocess:
-            log.debug(f"Fitting with multiprocess over {cpu_count()} CPUs")
-            with Pool(processes=cpu_count()) as pool:
-                for i in pool.starmap(
-                    self._fit_batch, zip(cubes, times, [mask_asteroids] * len(cubes))
-                ):
-                    w1, w2, j, bk, ast_mask = i
-                    weights_basic.append(w1)
-                    weights_full.append(w2)
-                    jitter.append(j)
-                    bkg.append(bk)
-                    if mask_asteroids:
-                        asteroid_mask += ast_mask
-            log.debug("Fitting DONE")
-        else:
-            log.debug("Fitting without multiprocess")
-            for idx, cube, time, ma in zip(
-                range(len(times)), cubes, times, [mask_asteroids] * len(cubes)
-            ):
-                w1, w2, j, bk, ast_mask = self._fit_batch(cube, time, ma)
-                weights_basic.append(w1)
-                weights_full.append(w2)
-                jitter.append(j)
-                bkg.append(bk)
-                if mask_asteroids:
-                    asteroid_mask += ast_mask
-            log.debug("Fitting DONE")
+            if mask_asteroids:
+                w1, w2, j, bk, ast_mask = self._fit_batch(
+                    flux_cube,
+                    times=tstart[l1:l2],
+                    mask_asteroids=mask_asteroids,
+                )
+            else:
+                w1, w2, j, bk, ast_mask = self._fit_batch(
+                    flux_cube, mask_asteroids=mask_asteroids
+                )
+            weights_basic.append(w1)
+            weights_full.append(w2)
+            jitter.append(j)
+            bkg.append(bk)
+            if mask_asteroids:
+                asteroid_mask += ast_mask
+
         return (
             xp.vstack(weights_basic),
             xp.vstack(weights_full),
@@ -467,13 +460,7 @@ class ScatteredLightBackground(object):
         )
 
     def fit_model(
-        self,
-        flux_cube,
-        tstart=None,
-        batch_size=50,
-        test_frame=0,
-        mask_asteroids=True,
-        multiprocess=True,
+        self, flux_cube, tstart=None, batch_size=50, test_frame=0, mask_asteroids=False
     ):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
 
@@ -524,7 +511,6 @@ class ScatteredLightBackground(object):
             tstart=tstart,
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
-            multiprocess=multiprocess,
         )
         # self._average_frame = flux_cube[test_frame] - self.model(test_frame)
         # # Mask out the asteroids from the average frame
@@ -710,7 +696,6 @@ class ScatteredLightBackground(object):
         verbose=False,
         quality_bitmask=175,
         njitter=5000,
-        multiprocess=True,
     ):
         """Creates a ScatteredLightBackground model from filenames
 
@@ -798,7 +783,6 @@ class ScatteredLightBackground(object):
             self.tstart[ok],
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
-            multiprocess=multiprocess,
         )
         log.debug("Assigning values")
         self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
