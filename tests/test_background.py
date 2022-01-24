@@ -4,16 +4,14 @@ import pytest
 
 from scatterbrain import PACKAGEDIR, ScatteredLightBackground, __version__
 from scatterbrain.cupy_numpy_imports import fitsio, load_image, np, xp
-from scatterbrain.designmatrix import (
-    cartesian_design_matrix,
-    radial_design_matrix,
-    spline_design_matrix,
-    strap_design_matrix,
-)
+from scatterbrain.designmatrix import (cartesian_design_matrix,
+                                       radial_design_matrix,
+                                       spline_design_matrix,
+                                       strap_design_matrix)
 
 
 def test_version():
-    assert __version__ == "0.1.4"
+    assert __version__ == "0.1.5"
 
 
 def test_design_matrix():
