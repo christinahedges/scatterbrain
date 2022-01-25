@@ -5,7 +5,7 @@ PYMODULE:=src
 TESTS:=tests
 
 # Run all the checks which do not change files
-all: flake8 black isort pytest
+all: isort black flake8 pytest
 
 # Order the imports using `isort`
 isort:

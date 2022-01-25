@@ -83,7 +83,7 @@ def test_background_save():
     assert b.strap_npoly == 2
     b.save(output_dir="")
     b = ScatteredLightBackground(1, 1, 1, column=xp.arange(10), row=xp.arange(9)).load(
-        "tessbackdrop_sector1_camera1_ccd1.fits", dir=""
+        "tessbackdrop_sector1_camera1_ccd1.fits.gz", dir=""
     )
     model = b.model(0)
     assert model.shape == (9, 10)
@@ -95,5 +95,8 @@ def test_background_save():
     model = b.model(0)
     assert np.isfinite(model).all()
     assert model.shape == (9, 10)
-    if os.path.exists("tessbackdrop_sector1_camera1_ccd1.fits"):
-        os.remove("tessbackdrop_sector1_camera1_ccd1.fits")
+
+
+def test_cleanup():
+    if os.path.exists("tessbackdrop_sector1_camera1_ccd1.fits.gz"):
+        os.remove("tessbackdrop_sector1_camera1_ccd1.fits.gz")

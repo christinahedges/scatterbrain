@@ -23,3 +23,10 @@ from .tpf import correct_tpf  # noqa
 from .version import __version__  # noqa
 
 sector_times = pickle.load(open(f"{PACKAGEDIR}/data/tess_sector_times.pkl", "rb"))
+
+
+def clear_scatterbrain_cache():
+    """Clears the scatterbrain cache"""
+    from astropy.utils.data import clear_download_cache
+
+    clear_download_cache(pkgname="scatterbrain")

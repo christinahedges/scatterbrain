@@ -205,7 +205,7 @@ class ScatteredLightBackground(object):
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits.gz"
         )
 
     def _build_masks(self, frame):
@@ -580,6 +580,10 @@ class ScatteredLightBackground(object):
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
+        if os.path.isfile(output_dir + fname + ".gz"):
+            os.path.isfile(output_dir + fname + ".gz")
+        os.system(f"gzip {output_dir + fname}")
+        log.debug("Compressed")
 
     def load(self, input, dir=None):
         """
@@ -600,7 +604,7 @@ class ScatteredLightBackground(object):
         if isinstance(input, tuple):
             if len(input) == 3:
                 sector, camera, ccd = input
-                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
+                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits.gz"
             else:
                 raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
         elif isinstance(input, str):
@@ -609,19 +613,25 @@ class ScatteredLightBackground(object):
             raise ValueError("Can not parse input")
         if dir is None:
             dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
-        if dir != "":
+        elif dir != "":
             if not os.path.isdir(dir):
                 raise ValueError("No solutions exist")
         if not os.path.isfile(dir + fname):
-            if os.path.isfile(
-                dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/" + fname
-            ):
-                dir = dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
+            if "sector" in locals():
+                if os.path.isfile(
+                    dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/" + fname
+                ):
+                    dir = dir + f"sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
+                else:
+                    raise ValueError("No files exist")
             else:
                 raise ValueError("No files exist")
         log.debug(f"Loading ScatteredLightBackground from {dir+fname}")
+        self._load_from_path(dir + fname)
+        return self
 
-        with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
+    def _load_from_path(self, path):
+        with fits.open(path, lazy_load_hdus=True) as hdu:
             for key in [
                 "sector",
                 "camera",
@@ -717,11 +727,6 @@ class ScatteredLightBackground(object):
         log.debug("Building `ScatteredLightBackground` from TESS images")
 
         fnames, sector, camera, ccd = _validate_inputs(fnames, sector, camera, ccd)
-
-        log.debug("Identifying bad frames")
-        blown_out_frames = identify_bad_frames(fnames)
-        log.debug("Identifying bad frames")
-        # make a ScatteredLightBackground object
         self = ScatteredLightBackground(
             sector=sector,
             camera=camera,
@@ -735,6 +740,11 @@ class ScatteredLightBackground(object):
         )
         s = np.argsort(self.tstart)
         self.tstart, fnames = self.tstart[s], np.asarray(fnames)[s]
+
+        log.debug("Identifying bad frames")
+        blown_out_frames = identify_bad_frames(fnames)
+        log.debug("Identifying bad frames")
+        # make a ScatteredLightBackground object
         self.tstop = np.asarray(
             [fitsio.read_header(fname, ext=0)["TSTOP"] for fname in fnames]
         )

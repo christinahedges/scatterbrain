@@ -170,7 +170,7 @@ class StarScene:
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits.gz"
         )
 
     def __getitem__(self, key):
@@ -250,7 +250,7 @@ class StarScene:
     @staticmethod
     def exists(sector=None, camera=None, ccd=None, dir=None):
         for type in ["backdrop", "starscene"]:
-            fname = f"tess{type}_sector{sector}_camera{camera}_ccd{ccd}.fits"
+            fname = f"tess{type}_sector{sector}_camera{camera}_ccd{ccd}.fits.gz"
             if dir is None:
                 dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
             if dir != "":
@@ -439,6 +439,10 @@ class StarScene:
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
+        if os.path.isfile(output_dir + fname + ".gz"):
+            os.remove(f"{output_dir + fname}.gz")
+        os.system(f"gzip {output_dir + fname}")
+        log.debug("Compressed")
         return
 
     def get_images(self, fnames, loc, orbit=1):
