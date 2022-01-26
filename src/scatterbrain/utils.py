@@ -6,8 +6,7 @@ import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from astropy.convolution import Gaussian1DKernel, convolve
-from astropy.stats import sigma_clip, sigma_clipped_stats
+from astropy.stats import sigma_clip
 from astropy.time import Time
 from astropy.utils.exceptions import AstropyWarning
 from fbpca import pca
@@ -278,8 +277,7 @@ def test_strip(fname, value=False):
 
 def identify_bad_frames(fnames):
     test = np.asarray([test_strip(fname, value=True) for fname in fnames])
-    s = sigma_clipped_stats(test.std(axis=1))
-    return convolve(((test.std(axis=1) - s[1]) / s[2]) > 8, Gaussian1DKernel(2)) != 0
+    return (test > 10000).any(axis=1)
 
 
 def minmax(x, shape=2048):

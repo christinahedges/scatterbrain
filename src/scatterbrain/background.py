@@ -198,14 +198,14 @@ class ScatteredLightBackground(object):
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
-    def quality_mask(self, quality_bitmask=175):
+    def quality_mask(self, quality_bitmask=63):
         return (self.quality.astype(int) & (8192 | quality_bitmask)) == 0
 
     @property
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits.gz"
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
 
     def _build_masks(self, frame):
@@ -580,10 +580,6 @@ class ScatteredLightBackground(object):
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
-        if os.path.isfile(output_dir + fname + ".gz"):
-            os.path.isfile(output_dir + fname + ".gz")
-        os.system(f"gzip {output_dir + fname}")
-        log.debug("Compressed")
 
     def load(self, input, dir=None):
         """
@@ -604,7 +600,7 @@ class ScatteredLightBackground(object):
         if isinstance(input, tuple):
             if len(input) == 3:
                 sector, camera, ccd = input
-                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits.gz"
+                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
             else:
                 raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
         elif isinstance(input, str):
@@ -704,7 +700,7 @@ class ScatteredLightBackground(object):
         camera=None,
         ccd=None,
         verbose=False,
-        quality_bitmask=175,
+        quality_bitmask=63,
         njitter=5000,
     ):
         """Creates a ScatteredLightBackground model from filenames

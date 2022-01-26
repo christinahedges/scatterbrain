@@ -170,7 +170,7 @@ class StarScene:
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits.gz"
+            f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
 
     def __getitem__(self, key):
@@ -250,7 +250,7 @@ class StarScene:
     @staticmethod
     def exists(sector=None, camera=None, ccd=None, dir=None):
         for type in ["backdrop", "starscene"]:
-            fname = f"tess{type}_sector{sector}_camera{camera}_ccd{ccd}.fits.gz"
+            fname = f"tess{type}_sector{sector}_camera{camera}_ccd{ccd}.fits"
             if dir is None:
                 dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
             if dir != "":
@@ -361,7 +361,10 @@ class StarScene:
             if not os.path.isdir(dir):
                 raise ValueError("No solutions exist")
         log.debug(f"Loading StarScene from {dir+fname}")
-        with fits.open(dir + fname, lazy_load_hdus=True) as hdu:
+        return self._load_from_path(dir + fname)
+
+    def _load_from_path(self, path):
+        with fits.open(path, lazy_load_hdus=True) as hdu:
             for key in [
                 "sector",
                 "camera",
@@ -377,18 +380,18 @@ class StarScene:
         self.weight_row = np.arange(self.row[0], self.row[-1] + 1)
         self.weight_column = np.arange(self.column[0], self.column[-1] + 1)
         self.weights = [
-            fitsio.FITS(dir + fname)[1][
+            fitsio.FITS(path)[1][
                 :, self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
             ],
-            fitsio.FITS(dir + fname)[2][
+            fitsio.FITS(path)[2][
                 :, self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
             ],
         ]
         self.bad_pixels = [
-            fitsio.FITS(dir + fname)[3][
+            fitsio.FITS(path)[3][
                 self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
             ].astype(bool),
-            fitsio.FITS(dir + fname)[4][
+            fitsio.FITS(path)[4][
                 self.row[0] : self.row[-1] + 1, self.column[0] : self.column[-1] + 1
             ].astype(bool),
         ]
@@ -433,14 +436,38 @@ class StarScene:
                     os.makedirs(output_dir)
 
         hdul = self._package_weights_hdulist()
+        log.debug("Saving as segments")
+        # for idx, l in enumerate(self.locs):
+        #     hdulist[0].header["SEGMENT"] = idx
+        #     hdulist[0].header["SEGMNTX1"] = l[0][0]
+        #     hdulist[0].header["SEGMNTX2"] = l[0][1]
+        #     hdulist[0].header["SEGMNTY1"] = l[1][0]
+        #     hdulist[0].header["SEGMNTY2"] = l[1][1]
+        #     hdul2 = fits.HDUList(
+        #         [
+        #             hdul[0],
+        #             fits.ImageHDU(
+        #                 hdul[1].data[:, l[0][0] : l[0][1], l[1][0] : l[1][1]]
+        #             ),
+        #             fits.ImageHDU(
+        #                 hdul[2].data[:, l[0][0] : l[0][1], l[1][0] : l[1][1]]
+        #             ),
+        #             fits.ImageHDU(hdul[3].data[l[0][0] : l[0][1], l[1][0] : l[1][1]]),
+        #             fits.ImageHDU(hdul[4].data[l[0][0] : l[0][1], l[1][0] : l[1][1]]),
+        #         ]
+        #     )
+        #     fname = f"tessstarscene_segment{idx}_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
+        #     hdul.writeto(output_dir + fname, overwrite=overwrite)
+        #
+        # log.debug("Saved")
         fname = (
             f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
-        if os.path.isfile(output_dir + fname + ".gz"):
-            os.remove(f"{output_dir + fname}.gz")
+        if os.path.isfile(output_dir + fname + ""):
+            os.remove(f"{output_dir + fname}")
         os.system(f"gzip {output_dir + fname}")
         log.debug("Compressed")
         return
