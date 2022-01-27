@@ -3,6 +3,9 @@ import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
+import numpy as np
+
+from . import PACKAGEDIR
 from .cupy_numpy_imports import sparse, xp
 from .utils import _spline_basis_vector
 
@@ -520,6 +523,89 @@ class strap_design_matrix(TESS_design_matrix):
             column=column,
             row=row,
             cutout_size=cutout_size,
+        )
+        self.prior_sigma = np.hstack(
+            [
+                ar ** (idx + 1)
+                for idx, ar in enumerate(np.array_split(self.prior_sigma, self.npoly))
+            ]
+        )
+
+
+class restricted_strap_design_matrix(TESS_design_matrix):
+    """Design matrix for creating column-wise offsets for TESS straps, restricted to locations where there are straps."""
+
+    def _build(self):
+        strap_locs = (self.strap_locs - self.bore_pixel[0]) / (2048)
+        k = np.in1d(self.column[0], strap_locs)
+        d = sparse.csr_matrix(xp.diag(xp.ones(self.column.shape[1])))[k]
+        A = sparse.hstack(
+            [
+                sparse.hstack([d] * self.row[:, 0] ** idx).T.tocsr()
+                for idx in range(self.npoly)
+            ]
+        )
+        return A
+
+    def __init__(
+        self,
+        sigma_f=None,
+        prior_sigma=None,
+        prior_mu=None,
+        ccd=3,
+        column=None,
+        row=None,
+        cutout_size=2048,
+        npoly=2,
+    ):
+        """
+        Create a `strap_design_matrix` object.
+
+        Parameters
+        ----------
+        sigma_f : xp.ndarray
+            The weights for each pixel in the design matrix. Default is
+            equal weights.
+        prior_sigma : xp.ndarray, int or float
+            The prior standard deviation of the design matrix components
+        prior_mu : xp.ndarray, int or float
+            The prior mean of the design matrix components
+        ccd : int
+            CCD number
+        column : None or xp.ndarray
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        row : None or xp.ndarray
+            The column numbers to evaluate the design matrix at. If None, uses all pixels.
+        name : str
+            Name for design matrix
+        cutout_size : int
+            Size of a "cutout" of images to use. Default is 2048. Use a smaller cut out to test functionality
+        npoly : int
+            Polynomial order for the strap model
+        """
+        log.debug("Initializing `restricted_strap_design_matrix`")
+        self.npoly = npoly
+        self.strap_locs = (
+            np.loadtxt(f"{PACKAGEDIR}/data/strap_locs.csv").astype(int) - 1
+        )
+        self.strap_locs = np.unique(
+            [self.strap_locs - 1, self.strap_locs, self.strap_locs + 1]
+        )
+        super().__init__(
+            name="restrictedstrap",
+            sigma_f=sigma_f,
+            prior_sigma=prior_sigma,
+            prior_mu=prior_mu,
+            ccd=ccd,
+            column=column,
+            row=row,
+            cutout_size=cutout_size,
+        )
+        self.prior_sigma = np.hstack(
+            [
+                ar ** (idx + 1)
+                for idx, ar in enumerate(np.array_split(self.prior_sigma, self.npoly))
+            ]
         )
 
 

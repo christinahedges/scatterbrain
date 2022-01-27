@@ -45,7 +45,8 @@ def test_background_cutout():
     fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
     f = fitsio.read(fname).astype(xp.float32)[:128, 45 : 128 + 45]
     frames = xp.asarray([f, f], dtype=xp.float32)
-    b = ScatteredLightBackground(1, 1, 1, cutout_size=128)
+    b = ScatteredLightBackground(1, 1, 1, cutout_size=128, quality=np.asarray([0, 0]))
+    b._build_masks(f)
     b.fit_model(frames, batch_size=2, mask_asteroids=False)
     assert len(b.weights_full) == 2
     assert len(b.weights_basic) == 2
@@ -83,7 +84,7 @@ def test_background_save():
     assert b.strap_npoly == 2
     b.save(output_dir="")
     b = ScatteredLightBackground(1, 1, 1, column=xp.arange(10), row=xp.arange(9)).load(
-        "tessbackdrop_sector1_camera1_ccd1.fits.gz", dir=""
+        "tessbackdrop_sector1_camera1_ccd1.fits", dir=""
     )
     model = b.model(0)
     assert model.shape == (9, 10)
@@ -98,5 +99,5 @@ def test_background_save():
 
 
 def test_cleanup():
-    if os.path.exists("tessbackdrop_sector1_camera1_ccd1.fits.gz"):
-        os.remove("tessbackdrop_sector1_camera1_ccd1.fits.gz")
+    if os.path.exists("tessbackdrop_sector1_camera1_ccd1.fits"):
+        os.remove("tessbackdrop_sector1_camera1_ccd1.fits")
