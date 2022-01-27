@@ -436,30 +436,6 @@ class StarScene:
                     os.makedirs(output_dir)
 
         hdul = self._package_weights_hdulist()
-        log.debug("Saving as segments")
-        # for idx, l in enumerate(self.locs):
-        #     hdulist[0].header["SEGMENT"] = idx
-        #     hdulist[0].header["SEGMNTX1"] = l[0][0]
-        #     hdulist[0].header["SEGMNTX2"] = l[0][1]
-        #     hdulist[0].header["SEGMNTY1"] = l[1][0]
-        #     hdulist[0].header["SEGMNTY2"] = l[1][1]
-        #     hdul2 = fits.HDUList(
-        #         [
-        #             hdul[0],
-        #             fits.ImageHDU(
-        #                 hdul[1].data[:, l[0][0] : l[0][1], l[1][0] : l[1][1]]
-        #             ),
-        #             fits.ImageHDU(
-        #                 hdul[2].data[:, l[0][0] : l[0][1], l[1][0] : l[1][1]]
-        #             ),
-        #             fits.ImageHDU(hdul[3].data[l[0][0] : l[0][1], l[1][0] : l[1][1]]),
-        #             fits.ImageHDU(hdul[4].data[l[0][0] : l[0][1], l[1][0] : l[1][1]]),
-        #         ]
-        #     )
-        #     fname = f"tessstarscene_segment{idx}_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
-        #     hdul.writeto(output_dir + fname, overwrite=overwrite)
-        #
-        # log.debug("Saved")
         fname = (
             f"tessstarscene_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
