@@ -192,7 +192,7 @@ class StarScene:
         return copy
 
     def _get_spline_design_matrix(
-        self, mask=None, ncomps=20, degree=2, nknots=20, bounds=(-0.5, 0.5)
+        self, mask=None, ncomps=10, degree=2, nknots=20, bounds=(-0.5, 0.5)
     ):
         """Construct a design matrix from the ScatteredLightBackground object"""
         if mask is None:
@@ -466,10 +466,6 @@ class StarScene:
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
-        if os.path.isfile(output_dir + fname + ""):
-            os.remove(f"{output_dir + fname}")
-        os.system(f"gzip {output_dir + fname}")
-        log.debug("Compressed")
         return
 
     def get_images(self, fnames, loc, orbit=1):

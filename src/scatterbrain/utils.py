@@ -1,17 +1,14 @@
 """basic utility functions"""
 import logging
-import warnings
 
 import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from astropy.stats import sigma_clip
+from astropy.stats import sigma_clip, sigma_clipped_stats
 from astropy.time import Time
-from astropy.utils.exceptions import AstropyWarning
 from fbpca import pca
 from matplotlib import animation
-from scipy.signal import medfilt
 from tqdm import tqdm
 
 from . import PACKAGEDIR
@@ -94,11 +91,12 @@ def get_star_mask(f):
     """False where stars are. Keep in mind this might be a bad
     set of hard coded parameters for some TESS images!"""
     # This removes pixels where there is a steep flux gradient
-    star_mask = (xp.hypot(*xp.gradient(f)) < 30) & (f < 9e4)
+    star_mask = (xp.hypot(*xp.gradient(f)) < 25) & (f < 9e4)
     # This broadens that mask by one pixel on all sides
-    star_mask = (
-        ~(xp.asarray(xp.gradient(star_mask.astype(float))) != 0).any(axis=0) & star_mask
-    )
+    star_mask[1:-1] &= star_mask[:-2]
+    star_mask[1:-1] &= star_mask[2:]
+    star_mask[:, 1:-1] &= star_mask[:, :-2]
+    star_mask[:, 1:-1] &= star_mask[:, 2:]
     return star_mask
 
 
@@ -134,7 +132,7 @@ def _find_saturation_column_centers(mask):
         w = xp.array_split(line, seq)
         v = xp.array_split(xp.arange(len(line)), seq)
         coords = [(idx, v1.mean().astype(int)) for v1, w1 in zip(v, w) if w1.all()]
-        rads = [len(v1) / 2 for v1, w1 in zip(v, w) if w1.all()]
+        rads = [3 * len(v1) / 4 for v1, w1 in zip(v, w) if w1.all()]
         for coord, rad in zip(coords, rads):
             centers.append(coord)
             radii.append(rad)
@@ -148,22 +146,22 @@ def get_sat_mask(f):
     set of hard coded parameters for some TESS images!"""
     sat = f > 9e4
     l, r = _find_saturation_column_centers(sat)
+    for count in range(3):
+        sat |= (np.asarray(np.gradient((sat).astype(float))) != 0).any(axis=0)
     col, row = xp.mgrid[: f.shape[0], : f.shape[1]]
     l, r = l[r > 1], r[r > 1]
     for idx in range(len(r)):
-        sat |= (xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx] * 2)) & (
-            xp.abs(col - l[idx, 1]) < xp.ceil(xp.min([r[idx] * 0.5, 7]))
+        sat |= (xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx] * 4)) & (
+            xp.abs(col - l[idx, 1]) < xp.ceil(xp.min([r[idx] * 0.5, 15]))
         )
-        sat |= xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx] * 0.75)
+        sat |= xp.hypot(row - l[idx, 0], col - l[idx, 1]) < (r[idx])
 
     return ~sat
 
 
-def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
-    """Packages the jitter terms into detrending vectors similar to CBVs.
-    If `split_time_domain` then splits the jitter into timescales of:
-        - t < 0.5 days
-        - t > 0.5 days
+def _package_pca_comps(backdrop, xpca_components=10):
+    """Packages the jitter terms into detrending vectors
+
     Parameters
     ----------
     backdrop: tess_backdrop.FullBackDrop
@@ -171,8 +169,6 @@ def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
     xpca_components : int
         Number of pca components to compress into. Default 20, which will result
         in an ntimes x 40 matrix if `split_time_domain`.
-    split_time_domain: bool
-        If True will split into two different time scales. Otherwise will take a PCA.
 
     Returns
     -------
@@ -184,7 +180,7 @@ def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
     for label in ["jitter", "bkg"]:
         comp = getattr(backdrop, label)
         comp = xp.asarray(comp)
-        finite = np.isfinite(comp).all(axis=1)
+        finite = backdrop.quality_mask()
         # If there aren't enough components, just return them.
         if comp.shape[0] < 40:
             setattr(backdrop, label + "_pack", comp)
@@ -193,53 +189,25 @@ def _package_pca_comps(backdrop, xpca_components=20, split_time_domain=False):
             setattr(backdrop, label + "_pack", comp)
             continue
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=AstropyWarning)
-            if label == "jitter":
-                sigma = 2
-            else:
-                sigma = 5
-            perc = np.diff(np.nanpercentile(comp, [90, 10], axis=0), axis=0)[0]
-            m = ~sigma_clip(perc, sigma=sigma).mask
-            comp = comp[:, m]
-
-        # We split at data downlinks where there is a gap of at least 0.2 days
-        breaks = xp.where(xp.diff(backdrop.tstart[finite]) > 0.2)[0] + 1
-        breaks = xp.hstack([0, breaks, len(backdrop.tstart[finite])])
-
         comp_short = comp[finite].copy()
-
-        if split_time_domain:
-            nb = int(0.5 / xp.median(xp.diff(backdrop.tstart)))
-            nb = [nb if (nb % 2) == 1 else nb + 1][0]
-
-            def smooth(x):
-                return xp.asarray([medfilt(x[:, tdx], nb) for tdx in range(x.shape[1])])
-
-            comp_medium = xp.hstack(
-                [smooth(comp[finite][x1:x2]) for x1, x2 in zip(breaks[:-1], breaks[1:])]
-            ).T
-
-            U1, s, V = pca(
-                comp_short - comp_medium, xpca_components, n_iter=10, raw=True
-            )
-            U2, s, V = pca(comp_medium, xpca_components, n_iter=10, raw=True)
-
-            X = xp.hstack(
-                [
-                    U1,
-                    U2,
-                ]
-            )
-            X = xp.hstack(
-                [X[:, idx::xpca_components] for idx in range(xpca_components)]
-            )
-            Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
-            Xall[finite] = X
-        else:
-            X, s, V = pca(comp_short, xpca_components, n_iter=10, raw=True)
-            Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
-            Xall[finite] = X
+        stats = sigma_clipped_stats(comp, axis=0)
+        # Find significantly variable pixels
+        k = ~sigma_clip(stats[1] / stats[2], sigma=5).mask
+        ksum = 0
+        for count in range(5):
+            # Build PCA components
+            X, s, V = pca(comp_short[:, k], xpca_components, True, 10)
+            # Some pixels have significant contributions from one component
+            # This indicates it's a component for a particular pixel
+            # We can clip those pixels out and recalculate the PCA
+            bad = np.where(k)[0][np.where(np.abs(V) > 0.5)[1]]
+            k[bad] = False
+            # Keep calculating until there are no more "bad" pixels
+            if ksum == k.sum():
+                break
+            ksum = k.sum()
+        Xall = np.zeros((backdrop.tstart.shape[0], X.shape[1]))
+        Xall[finite] = X
         setattr(backdrop, label + "_pack", Xall)
     return
 
@@ -277,7 +245,9 @@ def test_strip(fname, value=False):
 
 def identify_bad_frames(fnames):
     test = np.asarray([test_strip(fname, value=True) for fname in fnames])
-    return (test > 10000).any(axis=1)
+    # s = sigma_clipped_stats(test.std(axis=1))
+    # return convolve(((test.std(axis=1) - s[1]) / s[2]) > 8, Gaussian1DKernel(2)) != 0
+    return np.any(test > 10000, axis=1)
 
 
 def minmax(x, shape=2048):
@@ -498,6 +468,7 @@ def get_min_image_from_filenames(fnames, cutout_size=2048):
     ar : np.ndarray
         2D image that is the minimum image in the stack.
     """
+    log.debug("Calculating minimum image.")
     batch_size = np.max([512, int(2 ** (np.log2(cutout_size) - 2))])
     f = np.zeros((cutout_size, cutout_size))
     for loc in get_locs(cutout_size, batch_size):
@@ -505,4 +476,5 @@ def get_min_image_from_filenames(fnames, cutout_size=2048):
             [load_image(fname, loc=loc) for fname in fnames],
             axis=0,
         )
+    log.debug("Calculated minimum image.")
     return f
