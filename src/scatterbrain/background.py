@@ -359,7 +359,7 @@ class ScatteredLightBackground(object):
         log.debug("Batch done")
         return weights_basic, weights_full, jitter, bkg, ast_mask
 
-    def _run_batches(self, input, tstart=None, batch_size=25, mask_asteroids=True):
+    def _run_batches(self, input, tstart=None, batch_size=100, mask_asteroids=True):
         """
         Fit the model in batches, cutting the data into appropriate batch sizes.
 
@@ -447,7 +447,7 @@ class ScatteredLightBackground(object):
     def fit_model(
         self,
         flux_cube,
-        batch_size=50,
+        batch_size=100,
         mask_asteroids=False,
         cadence_mask=None,
     ):
@@ -466,28 +466,7 @@ class ScatteredLightBackground(object):
         """
         if cadence_mask is None:
             cadence_mask = np.ones(len(flux_cube), bool)
-        #
-        # if isinstance(flux_cube, list):
-        #     if not np.all(
-        #         [f.shape == (self.cutout_size, self.cutout_size) for f in flux_cube]
-        #     ):
-        #         raise ValueError(
-        #             f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-        #         )
-        # elif isinstance(flux_cube, xp.ndarray):
-        #     if flux_cube.ndim != 3:
-        #         raise ValueError("`flux_cube` must be 3D")
-        #     if not flux_cube.shape[1:] == (self.cutout_size, self.cutout_size):
-        #         raise ValueError(
-        #             f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-        #         )
-        # else:
-        #     raise ValueError("Pass an `xp.ndarray` or a `list`")
-        # if len(flux_cube) < 50:
-        #     self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
-        # else:
-        #     self._average_frame = np.nanmin(flux_cube, axis=0)
-        #        self._build_masks(flux_cube[test_frame] - self._average_frame)
+
         (w1, w2, j, bk, self.asteroid_mask) = self._run_batches(
             flux_cube[cadence_mask],
             tstart=[self.tstart[cadence_mask] if self.tstart is not None else None][0],
@@ -678,7 +657,7 @@ class ScatteredLightBackground(object):
     def from_tess_images(
         fnames,
         mask_asteroids=True,
-        batch_size=50,
+        batch_size=100,
         cutout_size=2048,
         sector=None,
         camera=None,
@@ -731,26 +710,7 @@ class ScatteredLightBackground(object):
         self.quality[blown_out_frames] |= 8192
         # Step 1: find a good test frame
         log.debug("Building average frame")
-        # if test_frame is None:
-        #     log.debug("Finding a good test frame")
-        #     a1, a2 = (
-        #         np.min([self.A1.bore_pixel[0], 2047]),
-        #         44 + np.min([self.A1.bore_pixel[1], 0]),
-        #     )
-        #     a1, a2 = a1.astype(int), a2.astype(int)
-        #
-        #     # Test frame is a low flux frame, close to the middle of the dataset.
-        #     f = np.asarray(
-        #         [
-        #             fitsio.FITS(fname)[1][a1 : a1 + 1, a2 : a2 + 1][0][0]
-        #             for fname in fnames
-        #         ]
-        #     )
-        #     l = np.where((f < np.nanpercentile(f, 5)) & (self.quality == 0))[0]
-        #     if len(l) == 0:
-        #         test_frame = len(fnames) // 2
-        #     else:
-        #         test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
+
         cadence_mask = self.quality_mask(quality_bitmask)
         if cadence_mask.sum() < 50:
             self._average_frame = np.zeros((self.cutout_size, self.cutout_size))

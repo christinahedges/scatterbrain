@@ -13,7 +13,7 @@ from scatterbrain.designmatrix import (
 
 
 def test_version():
-    assert __version__ == "0.1.7"
+    assert __version__ == "0.1.8"
 
 
 def test_design_matrix():
@@ -75,7 +75,8 @@ def test_background_save():
     fname = "/".join(PACKAGEDIR.split("/")[:-2]) + "/tests/data/tempffi.fits"
     f = load_image(fname)
     frames = xp.asarray([f, f], dtype=xp.float32)
-    b = ScatteredLightBackground(1, 1, 1)
+    b = ScatteredLightBackground(1, 1, 1, quality=np.asarray([0, 0]))
+    b._build_masks(f)
     b.fit_model(frames, batch_size=2, mask_asteroids=False)
     assert len(b.weights_full) == 2
     assert len(b.weights_basic) == 2
