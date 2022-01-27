@@ -11,8 +11,8 @@ from .cupy_numpy_imports import load_image, np, xp
 from .designmatrix import (
     cartesian_design_matrix,
     radial_spline_design_matrix,
+    restricted_strap_design_matrix,
     spline_design_matrix,
-    strap_design_matrix,
 )
 from .utils import (
     _align_with_tpf,
@@ -99,21 +99,6 @@ class ScatteredLightBackground(object):
             cutout_size=cutout_size,
             npoly=4,
         )
-
-        if column is not None:
-            strap_prior_sigma = np.hstack(
-                [
-                    np.ones(column.shape[0]) * 30 ** (idx + 1)
-                    for idx in range(self.strap_npoly)
-                ]
-            )
-        else:
-            strap_prior_sigma = np.hstack(
-                [
-                    np.ones(cutout_size) * 30 ** (idx + 1)
-                    for idx in range(self.strap_npoly)
-                ]
-            )
         self.A2 = (
             spline_design_matrix(
                 column=column,
@@ -132,12 +117,12 @@ class ScatteredLightBackground(object):
                 prior_sigma=300,
                 cutout_size=cutout_size,
             )
-            + strap_design_matrix(
+            + restricted_strap_design_matrix(
                 column=column,
                 row=row,
                 ccd=ccd,
                 sigma_f=sigma_f,
-                prior_sigma=strap_prior_sigma,
+                prior_sigma=30,
                 cutout_size=cutout_size,
                 npoly=self.strap_npoly,
             )
@@ -198,14 +183,14 @@ class ScatteredLightBackground(object):
                 setattr(copy, attr, list(getattr(copy, attr)))
         return copy
 
-    def quality_mask(self, quality_bitmask=175):
+    def quality_mask(self, quality_bitmask=63):
         return (self.quality.astype(int) & (8192 | quality_bitmask)) == 0
 
     @property
     def path(self):
         return (
             f"{PACKAGEDIR}/data/sector{self.sector:03}/camera{self.camera:02}/ccd{self.ccd:02}/"
-            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits.gz"
+            f"tessbackdrop_sector{self.sector}_camera{self.camera}_ccd{self.ccd}.fits"
         )
 
     def _build_masks(self, frame):
@@ -258,7 +243,7 @@ class ScatteredLightBackground(object):
         else:
             return
 
-    def _build_asteroid_mask(self, flux_cube, times):
+    def _build_asteroid_mask(self, times):
         """Creates a mask for asteroids, and increases the flux errors in those
         pixels to reduce their contribution to the model
 
@@ -273,10 +258,10 @@ class ScatteredLightBackground(object):
             sector=self.sector,
             camera=self.camera,
             ccd=self.ccd,
-            cutout_size=flux_cube[0].shape[0],
+            cutout_size=self.cutout_size,
             times=times,
         )
-        sigma_f = xp.ones(flux_cube[0].shape)
+        sigma_f = xp.ones((self.cutout_size, self.cutout_size))
         # More than the saturation limit
         sigma_f[~self.star_mask | ~self.sat_mask] = 1e6
         # Here we downweight asteroids and other variable pixels
@@ -347,7 +332,7 @@ class ScatteredLightBackground(object):
         if mask_asteroids:
             if times is None:
                 raise ValueError("Need times to mask asteroids")
-            ast_mask = self._build_asteroid_mask(flux_cube, times=times)
+            ast_mask = self._build_asteroid_mask(times)
         else:
             ast_mask = None
         weights_basic = self._fit_basic_batch(flux_cube)
@@ -374,7 +359,7 @@ class ScatteredLightBackground(object):
         log.debug("Batch done")
         return weights_basic, weights_full, jitter, bkg, ast_mask
 
-    def _run_batches(self, input, tstart=None, batch_size=25, mask_asteroids=True):
+    def _run_batches(self, input, tstart=None, batch_size=100, mask_asteroids=True):
         """
         Fit the model in batches, cutting the data into appropriate batch sizes.
 
@@ -460,7 +445,11 @@ class ScatteredLightBackground(object):
         )
 
     def fit_model(
-        self, flux_cube, tstart=None, batch_size=50, test_frame=0, mask_asteroids=False
+        self,
+        flux_cube,
+        batch_size=100,
+        mask_asteroids=False,
+        cadence_mask=None,
     ):
         """Fit a model to a flux cube, fitting frames in batches of size `batch_size`.
 
@@ -474,57 +463,29 @@ class ScatteredLightBackground(object):
             Times for each frame. Required if masking asteroids.
         batch_size : int
             Number of frames to fit at once.
-        test_frame : int
-            The index of the frame to use as the "reference frame".
-            This reference frame will be used to build masks to set `sigma_f`.
-            It should be the lowest background frame.
         """
-        if isinstance(flux_cube, list):
-            if not np.all(
-                [f.shape == (self.cutout_size, self.cutout_size) for f in flux_cube]
-            ):
-                raise ValueError(
-                    f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-                )
-        elif isinstance(flux_cube, xp.ndarray):
-            if flux_cube.ndim != 3:
-                raise ValueError("`flux_cube` must be 3D")
-            if not flux_cube.shape[1:] == (self.cutout_size, self.cutout_size):
-                raise ValueError(
-                    f"Frame is not ({self.cutout_size}, {self.cutout_size})"
-                )
-        else:
-            raise ValueError("Pass an `xp.ndarray` or a `list`")
-        if len(flux_cube) < 50:
-            self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
-        else:
-            self._average_frame = np.nanmin(flux_cube, axis=0)
-        self._build_masks(flux_cube[test_frame] - self._average_frame)
-        (
-            self.weights_basic,
-            self.weights_full,
-            self.jitter,
-            self.bkg,
-            self.asteroid_mask,
-        ) = self._run_batches(
-            flux_cube,
-            tstart=tstart,
+        if cadence_mask is None:
+            cadence_mask = np.ones(len(flux_cube), bool)
+
+        (w1, w2, j, bk, self.asteroid_mask) = self._run_batches(
+            flux_cube[cadence_mask],
+            tstart=[self.tstart[cadence_mask] if self.tstart is not None else None][0],
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
         )
-        # self._average_frame = flux_cube[test_frame] - self.model(test_frame)
-        # # Mask out the asteroids from the average frame
-        # if mask_asteroids:
-        #     self._average_frame[
-        #         get_asteroid_mask(
-        #             self.sector,
-        #             self.camera,
-        #             self.ccd,
-        #             cutout_size=self.cutout_size,
-        #             times=[self.tstart[test_frame]],
-        #         )
-        #     ] = np.nanmedian(self._average_frame)
-        # self._average_frame += min_frame
+
+        self.weights_basic = np.zeros((len(cadence_mask), w1.shape[1]))
+        self.weights_basic[cadence_mask] = w1
+        self.weights_basic[~cadence_mask] = np.nan
+        self.weights_full = np.zeros((len(cadence_mask), w2.shape[1]))
+        self.weights_full[cadence_mask] = w2
+        self.weights_full[~cadence_mask] = np.nan
+        self.jitter = np.zeros((len(cadence_mask), j.shape[1]))
+        self.jitter[cadence_mask] = j
+        self.jitter[~cadence_mask] = np.nan
+        self.bkg = np.zeros((len(cadence_mask), bk.shape[1]))
+        self.bkg[cadence_mask] = bk
+        self.bkg[~cadence_mask] = np.nan
 
         _package_pca_comps(self)
         return
@@ -580,10 +541,6 @@ class ScatteredLightBackground(object):
         log.debug(f"Saving to {fname}")
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
-        if os.path.isfile(output_dir + fname + ".gz"):
-            os.path.isfile(output_dir + fname + ".gz")
-        os.system(f"gzip {output_dir + fname}")
-        log.debug("Compressed")
 
     def load(self, input, dir=None):
         """
@@ -604,7 +561,7 @@ class ScatteredLightBackground(object):
         if isinstance(input, tuple):
             if len(input) == 3:
                 sector, camera, ccd = input
-                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits.gz"
+                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
             else:
                 raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
         elif isinstance(input, str):
@@ -651,16 +608,19 @@ class ScatteredLightBackground(object):
             self.strap_npoly = hdu[0].header["STRPPOLY"]
             # We have to do some work to get out just the column pixels
             # we are interested in
+            strap_locs = np.loadtxt(f"{PACKAGEDIR}/data/strap_locs.csv").astype(int) - 1
+            strap_locs = np.unique([strap_locs - 1, strap_locs, strap_locs + 1])
             strap_weights = np.hstack(
                 (
-                    weights_full[:, -2048 * self.strap_npoly :].reshape(
-                        (weights_full.shape[0], self.strap_npoly, 2048)
-                    )[:, :, self.column]
+                    weights_full[:, -230 * self.strap_npoly :].reshape(
+                        (weights_full.shape[0], self.strap_npoly, 230)
+                    )[:, :, np.in1d(strap_locs, self.column)]
                 ).transpose([1, 0, 2])
             )
+            print(strap_weights.shape)
             self.weights_full = np.hstack(
                 [
-                    weights_full[:, : -2048 * self.strap_npoly],
+                    weights_full[:, : -230 * self.strap_npoly],
                     strap_weights,
                 ]
             )
@@ -697,14 +657,13 @@ class ScatteredLightBackground(object):
     def from_tess_images(
         fnames,
         mask_asteroids=True,
-        batch_size=50,
-        test_frame=None,
+        batch_size=100,
         cutout_size=2048,
         sector=None,
         camera=None,
         ccd=None,
         verbose=False,
-        quality_bitmask=175,
+        quality_bitmask=63,
         njitter=5000,
     ):
         """Creates a ScatteredLightBackground model from filenames
@@ -715,9 +674,6 @@ class ScatteredLightBackground(object):
             List of filenames to compute the background model for
         batch_size : int
             Number of files to process in a given batch
-        test_frame : None or int
-            The frame to use as a "test" frame for building masks.
-            If None, a reasonable frame will be chosen.
 
         Returns
         -------
@@ -743,7 +699,7 @@ class ScatteredLightBackground(object):
 
         log.debug("Identifying bad frames")
         blown_out_frames = identify_bad_frames(fnames)
-        log.debug("Identifying bad frames")
+
         # make a ScatteredLightBackground object
         self.tstop = np.asarray(
             [fitsio.read_header(fname, ext=0)["TSTOP"] for fname in fnames]
@@ -754,59 +710,56 @@ class ScatteredLightBackground(object):
         self.quality[blown_out_frames] |= 8192
         # Step 1: find a good test frame
         log.debug("Building average frame")
-        if test_frame is None:
-            log.debug("Finding a good test frame")
-            a1, a2 = (
-                np.min([self.A1.bore_pixel[0], 2047]),
-                44 + np.min([self.A1.bore_pixel[1], 0]),
-            )
-            a1, a2 = a1.astype(int), a2.astype(int)
 
-            # Test frame is a low flux frame, close to the middle of the dataset.
-            f = np.asarray(
-                [
-                    fitsio.FITS(fname)[1][a1 : a1 + 1, a2 : a2 + 1][0][0]
-                    for fname in fnames
-                ]
-            )
-            l = np.where((f < np.nanpercentile(f, 5)) & (self.quality == 0))[0]
-            if len(l) == 0:
-                test_frame = len(fnames) // 2
-            else:
-                test_frame = l[np.argmin(np.abs(l - len(f) // 2))]
-        ok = self.quality_mask(quality_bitmask)
-        if ok.sum() < 50:
+        cadence_mask = self.quality_mask(quality_bitmask)
+        if cadence_mask.sum() < 50:
             self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
         else:
             self._average_frame = (
-                get_min_image_from_filenames(fnames[ok], cutout_size=self.cutout_size)
+                get_min_image_from_filenames(
+                    fnames[cadence_mask], cutout_size=self.cutout_size
+                )
                 - 1e-6
             )
         log.debug("Building source masks")
-        self._build_masks(
-            load_image(fnames[test_frame], cutout_size=cutout_size)
-            - self._average_frame
-        )
+        self._build_masks(self._average_frame)
+        if self._average_frame.sum() != 0:
+            m1 = self.A1.dot(self.A1.fit_frame(np.log10(self.average_frame))).reshape(
+                (self.cutout_size, self.cutout_size)
+            )
+            m2 = self.A2.dot(self.A2.fit_frame((self.average_frame - m1))).reshape(
+                (self.cutout_size, self.cutout_size)
+            )
+            self._average_frame = self._average_frame - np.nan_to_num(m1 + m2)
+
         log.debug("Running batches")
-        w1, w2, j, bk, self.asteroid_mask = self._run_batches(
-            fnames[ok],
-            self.tstart[ok],
+
+        self.fit_model(
+            fnames,
             batch_size=batch_size,
             mask_asteroids=mask_asteroids,
+            cadence_mask=cadence_mask,
         )
-        log.debug("Assigning values")
-        self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
-        self.weights_basic[ok] = w1
-        self.weights_basic[~ok] = np.nan
-        self.weights_full = np.zeros((len(fnames), w2.shape[1]))
-        self.weights_full[ok] = w2
-        self.weights_full[~ok] = np.nan
-        self.jitter = np.zeros((len(fnames), j.shape[1]))
-        self.jitter[ok] = j
-        self.jitter[~ok] = np.nan
-        self.bkg = np.zeros((len(fnames), bk.shape[1]))
-        self.bkg[ok] = bk
-        self.bkg[~ok] = np.nan
-        log.debug("Packaging PCA components")
-        _package_pca_comps(self)
+
+        # w1, w2, j, bk, self.asteroid_mask = self._run_batches(
+        #     fnames[ok],
+        #     self.tstart[ok],
+        #     batch_size=batch_size,
+        #     mask_asteroids=mask_asteroids,
+        # )
+        # log.debug("Assigning values")
+        # self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
+        # self.weights_basic[ok] = w1
+        # self.weights_basic[~ok] = np.nan
+        # self.weights_full = np.zeros((len(fnames), w2.shape[1]))
+        # self.weights_full[ok] = w2
+        # self.weights_full[~ok] = np.nan
+        # self.jitter = np.zeros((len(fnames), j.shape[1]))
+        # self.jitter[ok] = j
+        # self.jitter[~ok] = np.nan
+        # self.bkg = np.zeros((len(fnames), bk.shape[1]))
+        # self.bkg[ok] = bk
+        # self.bkg[~ok] = np.nan
+        # log.debug("Packaging PCA components")
+        # _package_pca_comps(self)
         return self
