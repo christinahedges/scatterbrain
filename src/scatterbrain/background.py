@@ -136,6 +136,7 @@ class ScatteredLightBackground(object):
             self.row = np.arange(self.cutout_size)
         else:
             self.row = row
+        self.row, self.column = np.atleast_1d(self.row), np.atleast_1d(self.column)
         self.weights_basic = []
         self.weights_full = []
         self.jitter = []
@@ -542,7 +543,8 @@ class ScatteredLightBackground(object):
         hdul.writeto(output_dir + fname, overwrite=overwrite)
         log.debug("Saved")
 
-    def load(self, input, dir=None):
+    @staticmethod
+    def from_disk(sector, camera, ccd, row=None, column=None, dir=None):
         """
         Load a model fit to the tess-backrop data directory.
 
@@ -558,16 +560,8 @@ class ScatteredLightBackground(object):
         -------
         self: `scatterbrain.SimpleScatteredLightBackground` object
         """
-        if isinstance(input, tuple):
-            if len(input) == 3:
-                sector, camera, ccd = input
-                fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
-            else:
-                raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
-        elif isinstance(input, str):
-            fname = input
-        else:
-            raise ValueError("Can not parse input")
+
+        fname = f"tessbackdrop_sector{sector}_camera{camera}_ccd{ccd}.fits"
         if dir is None:
             dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
         elif dir != "":
@@ -584,17 +578,27 @@ class ScatteredLightBackground(object):
             else:
                 raise ValueError("No files exist")
         log.debug(f"Loading ScatteredLightBackground from {dir+fname}")
-        self._load_from_path(dir + fname)
-        return self
+        return ScatteredLightBackground.from_path(dir + fname, row=row, column=column)
 
-    def _load_from_path(self, path):
+    @staticmethod
+    def from_path(path, row=None, column=None):
+        if row is None:
+            row = np.asarray([1])
+        if column is None:
+            column = np.asarray([1])
         with fits.open(path, lazy_load_hdus=True) as hdu:
-            for key in [
-                "sector",
-                "camera",
-                "ccd",
-            ]:
-                setattr(self, key, hdu[0].header[key])
+            sector, camera, ccd = [
+                hdu[0].header[key]
+                for key in [
+                    "sector",
+                    "camera",
+                    "ccd",
+                ]
+            ]
+        self = ScatteredLightBackground(
+            sector=sector, camera=camera, ccd=ccd, row=row, column=column
+        )
+        with fits.open(path, lazy_load_hdus=True) as hdu:
             setattr(self, "cutout_size", hdu[0].header["CUTSIZE"])
 
             if "tstart" in hdu[1].data.names:
@@ -606,6 +610,7 @@ class ScatteredLightBackground(object):
             self.weights_basic = list(hdu[2].data)
             weights_full = hdu[3].data
             self.strap_npoly = hdu[0].header["STRPPOLY"]
+
             # We have to do some work to get out just the column pixels
             # we are interested in
             strap_locs = np.loadtxt(f"{PACKAGEDIR}/data/strap_locs.csv").astype(int) - 1
@@ -617,7 +622,6 @@ class ScatteredLightBackground(object):
                     )[:, :, np.in1d(strap_locs, self.column)]
                 ).transpose([1, 0, 2])
             )
-            print(strap_weights.shape)
             self.weights_full = np.hstack(
                 [
                     weights_full[:, : -230 * self.strap_npoly],
@@ -632,22 +636,21 @@ class ScatteredLightBackground(object):
         return self
 
     @staticmethod
-    def from_disk(sector, camera, ccd, row=None, column=None, dir=None):
-        return ScatteredLightBackground(
-            sector=sector, camera=camera, ccd=ccd, row=row, column=column
-        ).load((sector, camera, ccd), dir=dir)
-
-    @staticmethod
     def from_tpf(tpf, dir=None):
-        backdrop = ScatteredLightBackground(
-            sector=tpf.sector,
-            camera=tpf.camera,
-            ccd=tpf.ccd,
+        backdrop = ScatteredLightBackground.from_disk(
+            tpf.sector,
+            tpf.camera,
+            tpf.ccd,
+            dir=dir,
             row=np.arange(tpf.shape[1]) + tpf.row - 1,
             column=np.arange(tpf.shape[2]) + tpf.column - 44 - 1,
-        ).load((tpf.sector, tpf.camera, tpf.ccd), dir=dir)
+        )
         idx, jdx = _align_with_tpf(backdrop, tpf)
         return backdrop[idx]
+
+    @staticmethod
+    def from_zenodo(tpf, dir=None):
+        raise NotImplementedError
 
     def get_tpf_mask(self, tpf):
         idx, jdx = _align_with_tpf(self, tpf)
@@ -741,25 +744,4 @@ class ScatteredLightBackground(object):
             cadence_mask=cadence_mask,
         )
 
-        # w1, w2, j, bk, self.asteroid_mask = self._run_batches(
-        #     fnames[ok],
-        #     self.tstart[ok],
-        #     batch_size=batch_size,
-        #     mask_asteroids=mask_asteroids,
-        # )
-        # log.debug("Assigning values")
-        # self.weights_basic = np.zeros((len(fnames), w1.shape[1]))
-        # self.weights_basic[ok] = w1
-        # self.weights_basic[~ok] = np.nan
-        # self.weights_full = np.zeros((len(fnames), w2.shape[1]))
-        # self.weights_full[ok] = w2
-        # self.weights_full[~ok] = np.nan
-        # self.jitter = np.zeros((len(fnames), j.shape[1]))
-        # self.jitter[ok] = j
-        # self.jitter[~ok] = np.nan
-        # self.bkg = np.zeros((len(fnames), bk.shape[1]))
-        # self.bkg[ok] = bk
-        # self.bkg[~ok] = np.nan
-        # log.debug("Packaging PCA components")
-        # _package_pca_comps(self)
         return self
