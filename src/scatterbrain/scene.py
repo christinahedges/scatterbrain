@@ -327,9 +327,10 @@ class StarScene:
 
         [[mininmum row, maxmimum row], [minimum column, maximum column]]
         """
-        return get_locs(2048, 512)
+        return get_locs(2048, self.batch_size)
 
-    def load(self, input, dir=None):
+    @staticmethod
+    def from_disk(sector, camera, ccd, row=None, column=None, dir=None):
         """
         Load a model fit from the data directory.
 
@@ -345,32 +346,32 @@ class StarScene:
         -------
         self: `scatterbrain.StarScene` object
         """
-        if isinstance(input, tuple):
-            if len(input) == 3:
-                sector, camera, ccd = input
-                fname = f"tessstarscene_sector{sector}_camera{camera}_ccd{ccd}.fits"
-            else:
-                raise ValueError("Please pass tuple as `(sector, camera, ccd)`")
-        elif isinstance(input, str):
-            fname = input
-        else:
-            raise ValueError("Can not parse input")
+        fname = f"tessstarscene_sector{sector}_camera{camera}_ccd{ccd}.fits"
         if dir is None:
             dir = f"{PACKAGEDIR}/data/sector{sector:03}/camera{camera:02}/ccd{ccd:02}/"
         if dir != "":
             if not os.path.isdir(dir):
                 raise ValueError("No solutions exist")
         log.debug(f"Loading StarScene from {dir+fname}")
-        return self._load_from_path(dir + fname)
+        return StarScene.from_path(dir + fname, row=row, column=column)
 
-    def _load_from_path(self, path):
+    @staticmethod
+    def from_path(path, row=None, column=None):
+        if row is None:
+            row = np.asarray([1])
+        if column is None:
+            column = np.asarray([1])
         with fits.open(path, lazy_load_hdus=True) as hdu:
-            for key in [
-                "sector",
-                "camera",
-                "ccd",
-            ]:
-                setattr(self, key, hdu[0].header[key])
+            sector, camera, ccd = [
+                hdu[0].header[key]
+                for key in [
+                    "sector",
+                    "camera",
+                    "ccd",
+                ]
+            ]
+        self = StarScene(sector=sector, camera=camera, ccd=ccd, row=row, column=column)
+        with fits.open(path, lazy_load_hdus=True) as hdu:
             setattr(self, "batch_size", hdu[0].header["BATSIZE"])
             if "NCOMPS" in hdu[0].header:
                 setattr(self, "ncomps", hdu[0].header["NCOMPS"])
@@ -396,17 +397,6 @@ class StarScene:
             ].astype(bool),
         ]
         return self
-
-    @staticmethod
-    def from_disk(sector, camera, ccd, dir=None, row=None, column=None):
-        return StarScene(
-            sector=sector,
-            camera=camera,
-            ccd=ccd,
-            batch_size=512,
-            row=row,
-            column=column,
-        ).load((sector, camera, ccd), dir=dir)
 
     def _package_weights_hdulist(self):
         hdu0 = self.hdu0

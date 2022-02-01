@@ -13,7 +13,7 @@ from scatterbrain.designmatrix import (
 
 
 def test_version():
-    assert __version__ == "0.1.9"
+    assert __version__ == "0.1.10"
 
 
 def test_design_matrix():

@@ -408,28 +408,26 @@ class ScatteredLightBackground(object):
         ):
             log.debug(f"Running batch {l1}:{l2}")
             if isinstance(input, (np.ndarray, list)) & isinstance(input[0], str):
-                flux_cube = [
-                    load_image(input[idx], cutout_size=self.cutout_size)
-                    - self._average_frame
-                    for idx in np.arange(l1, l2)
-                ]
+                flux_cube = np.asarray(
+                    [
+                        load_image(input[idx], cutout_size=self.cutout_size)
+                        - self._average_frame
+                        for idx in np.arange(l1, l2)
+                    ]
+                )
             elif isinstance(input, (np.ndarray, list)) & isinstance(
                 input[0], np.ndarray
             ):
-                flux_cube = [i - self._average_frame for i in input[l1:l2]]
+                flux_cube = np.asarray([i - self._average_frame for i in input[l1:l2]])
             else:
                 raise ValueError("Can not parse input.")
-
-            if mask_asteroids:
-                w1, w2, j, bk, ast_mask = self._fit_batch(
-                    flux_cube,
-                    times=tstart[l1:l2],
-                    mask_asteroids=mask_asteroids,
-                )
-            else:
-                w1, w2, j, bk, ast_mask = self._fit_batch(
-                    flux_cube, mask_asteroids=mask_asteroids
-                )
+            # Any values le 0 cause NaN's and infs...
+            flux_cube[flux_cube <= 0] = 1e-5
+            w1, w2, j, bk, ast_mask = self._fit_batch(
+                flux_cube,
+                times=[tstart[l1:l2] if mask_asteroids else None][0],
+                mask_asteroids=mask_asteroids,
+            )
             weights_basic.append(w1)
             weights_full.append(w2)
             jitter.append(j)
