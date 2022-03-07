@@ -712,7 +712,8 @@ class ScatteredLightBackground(object):
         # Step 1: find a good test frame
         log.debug("Building average frame")
 
-        cadence_mask = self.quality_mask(quality_bitmask)
+        # We make an aggressive mask for the average image.
+        cadence_mask = self.quality_mask(6911)
         if cadence_mask.sum() < 50:
             self._average_frame = np.zeros((self.cutout_size, self.cutout_size))
         else:
@@ -722,6 +723,7 @@ class ScatteredLightBackground(object):
                 )
                 - 1e-6
             )
+        cadence_mask = self.quality_mask(quality_bitmask)
         log.debug("Building source masks")
         self._build_masks(self._average_frame)
         if self._average_frame.sum() != 0:

@@ -1,10 +1,12 @@
 """basic utility functions"""
 import logging
+from glob import glob
 
 import fitsio
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from astropy.io import fits
 from astropy.stats import sigma_clip, sigma_clipped_stats
 from astropy.time import Time
 from fbpca import pca
@@ -15,6 +17,53 @@ from . import PACKAGEDIR
 from .cupy_numpy_imports import load_image, xp
 
 log = logging.getLogger(__name__)
+
+
+def crawl_names(dir, sector, camera, ccd):
+    """Will search through the directory for TESS FFI files"""
+    if not dir.endswith("/"):
+        dir = f"{dir}/"
+    dirnames = []
+    for sector_string in ["sector", "Sector"]:
+        for camera_string in ["camera", "Camera"]:
+            for ccd_string in ["ccd", "CCD"]:
+                [
+                    dirnames.append(
+                        f"{dir}{sector_string}{sector:0{idx}}"
+                        + f"/{camera_string}{camera:0{jdx}}/"
+                        + f"{ccd_string}{ccd:0{kdx}}/tess*-s{sector:04}-{camera}-{ccd}*ffic.fits"
+                    )
+                    for idx in np.arange(1, 4)
+                    for jdx in np.arange(1, 3)
+                    for kdx in np.arange(1, 3)
+                ]
+            [
+                dirnames.append(
+                    f"{dir}{sector_string}{sector:0{idx}}/"
+                    + f"{camera_string}{camera:0{jdx}}/"
+                    + f"tess*-s{sector:04}-{camera}-{ccd}*ffic.fits"
+                )
+                for idx in np.arange(1, 4)
+                for jdx in np.arange(1, 3)
+            ]
+        [
+            dirnames.append(
+                f"{dir}{sector_string}{sector:0{idx}}/"
+                + f"tess*-s{sector:04}-{camera}-{ccd}*ffic.fits"
+            )
+            for idx in np.arange(1, 4)
+        ]
+    dirnames = np.hstack(
+        [f"{dir}tess*-s{sector:04}-{camera}-{ccd}*ffic.fits", *dirnames]
+    )
+    idx = 0
+    fnames = []
+    while len(fnames) == 0:
+        fnames = glob(dirnames[idx])
+        idx += 1
+        if idx >= len(dirnames):
+            return None
+    return np.sort(fnames)
 
 
 def _align_with_tpf(object, tpf):
@@ -454,9 +503,6 @@ def get_locs(im_size=2048, batch_size=512):
 def get_min_image_from_filenames(fnames, cutout_size=2048):
     """Find the minimum image in a list of file names.
 
-    Breaks image into batches and loads segments of the image so as not to
-    fill up memory.
-
     Parameters
     ----------
     fnames : list of str
@@ -469,12 +515,75 @@ def get_min_image_from_filenames(fnames, cutout_size=2048):
         2D image that is the minimum image in the stack.
     """
     log.debug("Calculating minimum image.")
-    batch_size = np.max([512, int(2 ** (np.log2(cutout_size) - 2))])
-    f = np.zeros((cutout_size, cutout_size))
-    for loc in get_locs(cutout_size, batch_size):
-        f[loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]] = np.min(
-            [load_image(fname, loc=loc) for fname in fnames],
-            axis=0,
-        )
+    if cutout_size > 512:
+        ar = load_image(fnames[0], cutout_size)
+        for fname in fnames[1:]:
+            ar2 = load_image(fname, cutout_size)
+            diff = ar - ar2
+            ar -= diff * (diff > 0)
+    else:
+        ar = np.zeros((cutout_size, cutout_size))
+        for loc in get_locs(cutout_size):
+            ar[loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]] = np.min(
+                [load_image(fname, loc=loc) for fname in fnames],
+                axis=0,
+            )
     log.debug("Calculated minimum image.")
-    return f
+    return ar
+
+
+def get_avg_images_per_camera(
+    sector=1,
+    camera=1,
+    bitmask=6911,
+    input_dir="/Volumes/Nibelheim/tess/",
+    output_dir="",
+):
+    images = []
+    for ccd in tqdm(np.arange(1, 5)):
+        fnames = crawl_names(dir=input_dir, sector=sector, camera=camera, ccd=ccd)
+        if fnames is None:
+            continue
+        quality = np.asarray(
+            [fitsio.read_header(fname, ext=1)["DQUALITY"] for fname in fnames]
+        )
+        cadence_mask = (quality.astype(int) & (bitmask)) == 0
+        ar = get_min_image_from_filenames(fnames[cadence_mask])
+        hdr = fits.Header()
+        hdr["camera"] = camera
+        hdr["ccd"] = ccd
+        hdr["sector"] = sector
+        images.append(fits.ImageHDU(ar, hdr, name="MINIMG"))
+    fits.HDUList([fits.PrimaryHDU(), *images]).writeto(
+        f"{output_dir}avg_images_sector{sector:02}_camera{camera:02}.fits",
+        overwrite=True,
+    )
+
+
+# def get_min_image_from_filenames(fnames, cutout_size=2048):
+#     """Find the minimum image in a list of file names.
+#
+#     Breaks image into batches and loads segments of the image so as not to
+#     fill up memory.
+#
+#     Parameters
+#     ----------
+#     fnames : list of str
+#         List of filenames
+#     cutout_size: int, Optional
+#         Optional size of the image to cut out.
+#     Returns
+#     -------
+#     ar : np.ndarray
+#         2D image that is the minimum image in the stack.
+#     """
+#     log.debug("Calculating minimum image.")
+#     batch_size = np.max([512, int(2 ** (np.log2(cutout_size) - 2))])
+#     f = np.zeros((cutout_size, cutout_size))
+#     for loc in get_locs(cutout_size, batch_size):
+#         f[loc[0][0] : loc[0][1], loc[1][0] : loc[1][1]] = np.min(
+#             [load_image(fname, loc=loc) for fname in fnames],
+#             axis=0,
+#         )
+#     log.debug("Calculated minimum image.")
+#     return f

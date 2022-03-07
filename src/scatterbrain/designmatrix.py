@@ -536,7 +536,7 @@ class restricted_strap_design_matrix(TESS_design_matrix):
     """Design matrix for creating column-wise offsets for TESS straps, restricted to locations where there are straps."""
 
     def _build(self):
-        strap_locs = (self.strap_locs - self.bore_pixel[0]) / (2048)
+        strap_locs = (self.strap_locs - self.bore_pixel[1]) / (2048)
         k = np.in1d(self.column[0], strap_locs)
         d = sparse.csr_matrix(xp.diag(xp.ones(self.column.shape[1])))[k]
         A = sparse.hstack(
