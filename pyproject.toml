@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scatterbrain"
-version = "0.1.10"
+version = "0.1.11"
 description = ""
 authors = ["Christina Hedges <christina.l.hedges@nasa.gov>"]
 
